@@ -224,6 +224,73 @@ const initDB = async () => {
             );
         }
 
+        // MATERIALIZED VIEWs para los reportes
+
+        // Ventas por día
+
+        await pool.query(`
+            CREATE MATERIALIZED VIEW IF NOT EXISTS ventas_diarias_mv AS
+            SELECT 
+                s.date::date AS dia,
+                SUM(s.total) AS total_ventas,
+                COUNT(*) AS cantidad_ventas
+            FROM sales s
+            GROUP BY dia
+            ORDER BY dia DESC;
+        `);
+
+        await pool.query(`
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_ventas_diarias_mv_dia 
+            ON ventas_diarias_mv (dia);
+        `);
+
+
+        // Top productos más vendidos
+
+        await pool.query(`
+            CREATE MATERIALIZED VIEW IF NOT EXISTS top_productos_mv AS
+            SELECT 
+                si.productName AS producto,
+                SUM(si.quantity) AS total_vendido,
+                SUM(si.price * si.quantity) AS total_recaudado
+            FROM sale_items si
+            GROUP BY si.productName
+            ORDER BY total_vendido DESC;
+        `);
+
+        await pool.query(`
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_top_productos_mv_producto 
+            ON top_productos_mv (producto);
+        `);
+
+
+        // detalles
+
+        await pool.query(`
+            CREATE MATERIALIZED VIEW IF NOT EXISTS ventas_detalle_mv AS
+            SELECT 
+                s.id AS sale_id,
+                s.date,
+                s.paymentMethod,
+                s.total,
+                COUNT(si.id) AS total_items,
+                SUM(si.quantity) AS total_unidades
+            FROM sales s
+            LEFT JOIN sale_items si ON s.id = si.saleId
+            GROUP BY s.id, s.date, s.paymentMethod, s.total
+            ORDER BY s.date DESC;
+        `);
+
+        await pool.query(`
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_ventas_detalle_mv_sale_id 
+            ON ventas_detalle_mv (sale_id);
+        `);
+
+        
+        // MATERIALIZED VIEWs para los reportes
+
+        
+
         // Seed Supplier Products (Prices)
         const resSupplierProducts = await pool.query("SELECT count(*) as count FROM supplier_products");
         if (parseInt(resSupplierProducts.rows[0].count) === 0) {

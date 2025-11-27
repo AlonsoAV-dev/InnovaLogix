@@ -4,6 +4,8 @@ import bodyParser from 'body-parser';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import pool from './database.js';
+import cron from "node-cron";
+
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -307,6 +309,58 @@ app.post('/api/sales', async (req, res) => {
         client.release();
     }
 });
+
+// --- TEMPORIZADOR para refrescar los reportes ---
+cron.schedule("*/1 * * * *", async () => {
+    try {
+        console.log("Refreshing Materialized Views...");
+        await pool.query("REFRESH MATERIALIZED VIEW CONCURRENTLY ventas_diarias_mv");
+        await pool.query("REFRESH MATERIALIZED VIEW CONCURRENTLY top_productos_mv");
+        await pool.query("REFRESH MATERIALIZED VIEW CONCURRENTLY ventas_detalle_mv");
+        console.log("Views refreshed!");
+    } catch (err) {
+        console.error("Error refreshing MVs:", err.message);
+    }
+});
+// --- TEMPORIZADOR para refrescar los reportes ---
+
+
+// --- Ventas por día ---
+app.get('/api/reportes/ventas-diarias', async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM ventas_diarias_mv ORDER BY dia DESC");
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+// --- Ventas por día ---
+
+// --- Top productos ---
+app.get('/api/reportes/top-productos', async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM top_productos_mv ORDER BY total_vendido DESC LIMIT 10");
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+// --- Top productos ---
+
+// --- Ventas individuales ---
+app.get('/api/reportes/ventas-detalle', async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM ventas_detalle_mv ORDER BY date DESC");
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+// --- Ventas individuales ---
+
+
+
+
 
 // --- CUSTOMERS ---
 app.get('/api/customers', async (req, res) => {

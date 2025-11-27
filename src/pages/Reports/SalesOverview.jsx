@@ -1,29 +1,56 @@
-import React, { useState } from 'react';
-import { useStore } from '../../context/StoreContext';
-import { DollarSign, ShoppingBag, CreditCard } from 'lucide-react';
+import { useEffect, useState } from "react";
 import './SalesOverview.css';
+import { DollarSign, ShoppingBag, CreditCard } from 'lucide-react';
 
-const SalesOverview = () => {
-    const { sales } = useStore();
-    const [period, setPeriod] = useState('monthly'); // daily, weekly, monthly
+export default function SalesOverview() {
+  const [ventas, setVentas] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-    // Calculate totals
-    const totalSales = sales.reduce((sum, s) => sum + s.total, 0);
-    const totalOrders = sales.length;
-    const avgTicket = totalOrders > 0 ? totalSales / totalOrders : 0;
 
-    // Filter sales based on period (mock logic for demo)
-    const filteredSales = sales; // In a real app, filter by date range
 
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const res = await fetch("http://localhost:3001/api/reportes/ventas-detalle");
+        const data = await res.json();
+        setVentas(data);
+      } catch (err) {
+        console.error("Error cargando ventas detalle:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  if (loading) {
     return (
-        <div className="sales-overview">
-            <div className="metrics-grid">
+      <div className="p-6 text-xl font-semibold text-gray-700">
+        Cargando reportes...
+      </div>
+    );
+  }
+
+  // KPIs
+  const totalSales = ventas.reduce((sum, v) => sum + Number(v.total), 0);
+  const totalOrders = ventas.length;
+  const avgTicket = totalOrders > 0 ? (totalSales / totalOrders).toFixed(2) : 0;
+  const totalUnits = ventas.reduce((sum, v) => sum + Number(v.total_unidades ?? 0), 0);
+
+  return (
+    <div className="p-6">
+      {/* Título */}
+        <h2 className="text-2xl font-bold mb-6 text-gray-800">
+        Resumen de Ventas
+        </h2>
+         
+        <div className="metrics-grid">
                 <div className="metric-card">
                     <div className="metric-icon money">
                         <DollarSign size={24} />
                     </div>
                     <div className="metric-info">
-                        <h3>S/ {totalSales.toFixed(2)}</h3>
+                        <h3>S/ {totalSales}</h3>
                         <p>Ventas Totales</p>
                     </div>
                 </div>
@@ -41,62 +68,40 @@ const SalesOverview = () => {
                         <CreditCard size={24} />
                     </div>
                     <div className="metric-info">
-                        <h3>S/ {avgTicket.toFixed(2)}</h3>
+                        <h3>S/ {avgTicket}</h3>
                         <p>Ticket Promedio</p>
                     </div>
                 </div>
-            </div>
-
-            <div className="sales-list-section">
-                <div className="section-header">
-                    <h3>Detalle de Ventas</h3>
-                    <div className="period-toggle">
-                        <button
-                            className={period === 'daily' ? 'active' : ''}
-                            onClick={() => setPeriod('daily')}
-                        >
-                            Diario
-                        </button>
-                        <button
-                            className={period === 'weekly' ? 'active' : ''}
-                            onClick={() => setPeriod('weekly')}
-                        >
-                            Semanal
-                        </button>
-                        <button
-                            className={period === 'monthly' ? 'active' : ''}
-                            onClick={() => setPeriod('monthly')}
-                        >
-                            Mensual
-                        </button>
-                    </div>
-                </div>
-
-                <table className="sales-table">
-                    <thead>
-                        <tr>
-                            <th>Fecha</th>
-                            <th>ID Venta</th>
-                            <th>Método Pago</th>
-                            <th>Items</th>
-                            <th>Total</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filteredSales.map(sale => (
-                            <tr key={sale.id}>
-                                <td>{new Date(sale.date).toLocaleDateString()}</td>
-                                <td>#{sale.id.toString().slice(-6)}</td>
-                                <td className="capitalize">{sale.paymentMethod}</td>
-                                <td>{sale.items}</td>
-                                <td>S/ {sale.total.toFixed(2)}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
         </div>
-    );
-};
 
-export default SalesOverview;
+     
+      
+      {/* Tabla */}
+      
+        <table className="sales-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>ID Venta</th>
+              <th>Método de Pago</th>
+              <th>Items</th>
+              <th>Unidades</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ventas.map((v) => (
+              <tr key={v.sale_id}>
+                <td>{new Date(v.date).toLocaleString()}</td>
+                <td>{v.sale_id}</td>
+                <td className="capitalize">{v.paymentmethod}</td>
+                <td>{v.total_items}</td>
+                <td>{v.total_unidades}</td> 
+                <td>S/ {v.total}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+    </div>
+  );
+}
