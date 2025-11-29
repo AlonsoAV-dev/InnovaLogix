@@ -86,22 +86,27 @@
     background-color: var(--color-bg-card);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    overflow: hidden;
-    flex: 1;
+    max-height: 600px;
+    overflow-y: auto;
+    display: block;
 }
 
 .inventory-table {
     width: 100%;
     border-collapse: collapse;
     text-align: left;
+    display: table;
 }
 
 .inventory-table th {
-    background-color: rgba(255, 255, 255, 0.02);
+    background-color: var(--color-bg-card);
     padding: var(--spacing-md);
     font-weight: 600;
     color: var(--color-text-muted);
     border-bottom: 1px solid var(--color-border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
 }
 
 .inventory-table td {
@@ -180,55 +185,7 @@
     color: var(--color-text-main);
 }
 
-.inventory-container {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    gap: var(--spacing-lg);
-}
 
-.inventory-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.page-title {
-    margin: 0;
-    font-size: var(--font-size-xl);
-    color: var(--color-text-main);
-}
-
-.header-actions {
-    display: flex;
-    gap: var(--spacing-md);
-}
-
-.search-wrapper {
-    width: 300px;
-}
-
-.inventory-table-container {
-    background-color: var(--color-bg-card);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-    flex: 1;
-}
-
-.inventory-table {
-    width: 100%;
-    border-collapse: collapse;
-    text-align: left;
-}
-
-.inventory-table th {
-    background-color: rgba(255, 255, 255, 0.02);
-    padding: var(--spacing-md);
-    font-weight: 600;
-    color: var(--color-text-muted);
-    border-bottom: 1px solid var(--color-border);
-}
 
 .inventory-table td {
     padding: var(--spacing-md);
@@ -318,11 +275,19 @@
 
 /* Alerts Section */
 .alerts-section {
-    margin-bottom: 2rem;
+    margin-bottom: 1rem;
     background-color: #fff3e0;
-    padding: 1rem;
+    padding: 0.75rem 1rem;
     border-radius: 8px;
     border: 1px solid #ffe0b2;
+    position: relative;
+}
+
+.alerts-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
 }
 
 .alerts-title {
@@ -330,56 +295,77 @@
     align-items: center;
     gap: 0.5rem;
     color: #e65100;
-    margin-bottom: 1rem;
-    font-size: 1.1rem;
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.alerts-close-btn {
+    background: none;
+    border: none;
+    color: #e65100;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.alerts-close-btn:hover {
+    background-color: rgba(230, 81, 0, 0.1);
 }
 
 .alerts-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.75rem;
+    max-height: 200px;
+    overflow-y: auto;
 }
 
 .alert-card {
     background: white;
-    padding: 1rem;
+    padding: 0.75rem;
     border-radius: 6px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    border-left: 4px solid #ff9800;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    border-left: 3px solid #ff9800;
 }
 
 .alert-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.4rem;
 }
 
 .alert-product {
     font-weight: 600;
     color: #2c3e50;
+    font-size: 0.85rem;
 }
 
 .alert-badge {
     background-color: #ffebee;
     color: #c62828;
-    font-size: 0.7rem;
-    padding: 2px 6px;
+    font-size: 0.65rem;
+    padding: 2px 5px;
     border-radius: 4px;
     font-weight: bold;
 }
 
 .alert-details p {
-    margin: 0.2rem 0;
-    font-size: 0.9rem;
+    margin: 0.15rem 0;
+    font-size: 0.8rem;
     color: #546e7a;
 }
 
 .alert-suggestion {
-    margin-top: 0.8rem;
-    padding-top: 0.5rem;
+    margin-top: 0.5rem;
+    padding-top: 0.4rem;
     border-top: 1px dashed #eee;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     color: #2e7d32;
     font-weight: 500;
 }

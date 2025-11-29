@@ -15,7 +15,7 @@ const KardexModal = ({ product, onClose }) => {
     const fetchKardex = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`http://localhost:3001/api/inventory/kardex/${product.id}`);
+            const response = await fetch(`http://localhost:3000/api/inventory/movements?productId=${product.id}`);
             if (response.ok) {
                 const data = await response.json();
                 setMovements(data);

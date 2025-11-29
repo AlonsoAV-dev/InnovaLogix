@@ -144,7 +144,7 @@ app.post('/api/products', async (req, res) => {
     const { name, price, cost, stock, minStock, category, image } = req.body;
     try {
         const result = await pool.query(
-            "INSERT INTO products (name, price, cost, stock, minStock, category, image) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
+            "INSERT INTO products (name, price, cost, stock, minstock, category, image) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
             [name, price, cost, stock, minStock, category, image]
         );
         
@@ -155,7 +155,7 @@ app.post('/api/products', async (req, res) => {
         
         // Record movement
         await pool.query(
-            `INSERT INTO inventory_movements (productId, type, quantity, previousStock, newStock, reference, notes)
+            `INSERT INTO inventory_movements (productid, type, quantity, previousstock, newstock, reference, notes)
              VALUES ($1, 'ADJUSTMENT', $2, 0, $3, 'CREATE', 'Producto creado')`,
             [newProduct.id, stock, stock]
         );
@@ -188,7 +188,7 @@ app.put('/api/products/:id', async (req, res) => {
         
         const result = await pool.query(
             `UPDATE products 
-             SET name = $1, price = $2, cost = $3, stock = $4, minStock = $5, category = $6, image = $7, updatedAt = CURRENT_TIMESTAMP
+             SET name = $1, price = $2, cost = $3, stock = $4, minstock = $5, category = $6, image = $7, updatedat = CURRENT_TIMESTAMP
              WHERE id = $8 RETURNING *`,
             [name, price, cost, stock, minStock, category, image, req.params.id]
         );
@@ -201,7 +201,7 @@ app.put('/api/products/:id', async (req, res) => {
         // Record movement if stock changed
         if (previousStock !== stock) {
             await pool.query(
-                `INSERT INTO inventory_movements (productId, type, quantity, previousStock, newStock, reference, notes)
+                `INSERT INTO inventory_movements (productid, type, quantity, previousstock, newstock, reference, notes)
                  VALUES ($1, 'ADJUSTMENT', $2, $3, $4, 'UPDATE', 'Producto actualizado')`,
                 [updatedProduct.id, stock - previousStock, previousStock, stock]
             );
@@ -242,7 +242,7 @@ app.delete('/api/products/:id', async (req, res) => {
 // Get stock alerts (low stock products)
 app.get('/api/alerts', async (req, res) => {
     try {
-        const result = await pool.query("SELECT * FROM products WHERE stock <= minStock ORDER BY stock ASC");
+        const result = await pool.query("SELECT * FROM products WHERE stock <= minstock ORDER BY stock ASC");
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -254,14 +254,14 @@ app.get('/api/inventory/movements', async (req, res) => {
     try {
         const { productId } = req.query;
         let query = `
-            SELECT im.*, p.name as productName 
+            SELECT im.*, p.name as productname 
             FROM inventory_movements im
-            JOIN products p ON im.productId = p.id
+            JOIN products p ON im.productid = p.id
         `;
         let params = [];
         
         if (productId) {
-            query += ' WHERE im.productId = $1';
+            query += ' WHERE im.productid = $1';
             params.push(productId);
         }
         
@@ -296,11 +296,11 @@ app.post('/api/inventory/update-stock', async (req, res) => {
         }
         
         // Update stock
-        await client.query("UPDATE products SET stock = $1, updatedAt = CURRENT_TIMESTAMP WHERE id = $2", [newStock, productId]);
+        await client.query("UPDATE products SET stock = $1, updatedat = CURRENT_TIMESTAMP WHERE id = $2", [newStock, productId]);
         
         // Record movement
         await client.query(
-            `INSERT INTO inventory_movements (productId, type, quantity, previousStock, newStock, reference, notes)
+            `INSERT INTO inventory_movements (productid, type, quantity, previousstock, newstock, reference, notes)
              VALUES ($1, $2, $3, $4, $5, $6, $7)`,
             [productId, type, quantity, previousStock, newStock, reference, notes]
         );

@@ -42,8 +42,15 @@ app.get('/health', (req, res) => {
 // Generic proxy function
 const proxyRequest = async (req, res, serviceUrl) => {
     try {
-        // Use originalUrl to get full path including /api prefix
-        const url = `${serviceUrl}${req.originalUrl}`;
+        // Build the target URL: serviceUrl + /api + path (req.path already removes /api from req.originalUrl)
+        const url = `${serviceUrl}/api${req.path}`;
+        
+        // Clean headers - don't forward host, content-length, etc
+        const forwardHeaders = {};
+        if (req.headers.authorization) {
+            forwardHeaders.authorization = req.headers.authorization;
+        }
+        
         const config = {
             method: req.method,
             url,
@@ -51,12 +58,16 @@ const proxyRequest = async (req, res, serviceUrl) => {
             params: req.query,
             headers: {
                 'Content-Type': 'application/json',
-                ...req.headers
-            }
+                ...forwardHeaders
+            },
+            timeout: 30000 // 30 second timeout
         };
         
-        console.log(`[Gateway] Proxying ${req.method} request to: ${url}`);
+        console.log(`[Gateway] Proxying ${req.method} ${req.path} to: ${url}`);
+        
         const response = await axios(config);
+        
+        console.log(`[Gateway] Response status: ${response.status}`);
         res.status(response.status).json(response.data);
     } catch (error) {
         console.error(`[Gateway] Error proxying to ${serviceUrl}:`, error.message);

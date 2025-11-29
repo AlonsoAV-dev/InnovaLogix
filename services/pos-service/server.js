@@ -26,7 +26,12 @@ app.get('/health', (req, res) => {
 app.get('/api/sales', async (req, res) => {
     try {
         const result = await pool.query("SELECT * FROM sales ORDER BY date DESC LIMIT 100");
-        res.json(result.rows);
+        const sales = result.rows.map(s => ({
+            ...s,
+            total: parseFloat(s.total),
+            items: parseInt(s.items)
+        }));
+        res.json(sales);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -51,6 +56,9 @@ app.get('/api/sales/:id', async (req, res) => {
 });
 
 app.post('/api/sales', async (req, res) => {
+    console.log(`📥 [${SERVICE_NAME}] POST /api/sales - Request received`);
+    console.log('Body:', JSON.stringify(req.body, null, 2));
+    
     const { total, items, paymentMethod, receiptType, receiptNumber, clientData, cartItems } = req.body;
     const date = new Date().toISOString();
 
@@ -58,27 +66,35 @@ app.post('/api/sales', async (req, res) => {
     const clientDoc = clientData ? clientData.docNumber : '';
     const clientAddress = clientData ? clientData.address : '';
 
+    console.log(`🔄 [${SERVICE_NAME}] Getting DB client...`);
     const client = await pool.connect();
+    console.log(`✅ [${SERVICE_NAME}] DB client acquired`);
 
     try {
+        console.log(`🔄 [${SERVICE_NAME}] Starting transaction...`);
         await client.query('BEGIN');
 
         // Insert Sale
+        console.log(`🔄 [${SERVICE_NAME}] Inserting sale...`);
         const saleRes = await client.query(
-            `INSERT INTO sales (date, total, items, paymentMethod, receiptType, receiptNumber, clientName, clientDoc, clientAddress) 
+            `INSERT INTO sales (date, total, items, paymentmethod, receipttype, receiptnumber, clientname, clientdoc, clientaddress) 
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
             [date, total, items, paymentMethod, receiptType, receiptNumber, clientName, clientDoc, clientAddress]
         );
         const saleId = saleRes.rows[0].id;
+        console.log(`✅ [${SERVICE_NAME}] Sale inserted with ID: ${saleId}`);
 
         // Insert Sale Items
+        console.log(`🔄 [${SERVICE_NAME}] Inserting ${cartItems.length} items...`);
         for (const item of cartItems) {
+            console.log(`🔄 [${SERVICE_NAME}] Inserting item: ${item.name}`);
             await client.query(
-                "INSERT INTO sale_items (saleId, productId, productName, quantity, price) VALUES ($1, $2, $3, $4, $5)",
+                "INSERT INTO sale_items (saleid, productid, productname, quantity, price) VALUES ($1, $2, $3, $4, $5)",
                 [saleId, item.id, item.name, item.quantity, item.price]
             );
             
             // Call Inventory Service to update stock
+            console.log(`🔄 [${SERVICE_NAME}] Calling Inventory Service for product ${item.id}...`);
             try {
                 await axios.post(`${INVENTORY_SERVICE_URL}/api/inventory/update-stock`, {
                     productId: item.id,
@@ -95,6 +111,7 @@ app.post('/api/sales', async (req, res) => {
             }
         }
         
+        console.log(`🔄 [${SERVICE_NAME}] Checking customer data...`);
         // If customer provided, update their points and purchases
         if (clientData && clientData.id) {
             try {
@@ -112,7 +129,9 @@ app.post('/api/sales', async (req, res) => {
             }
         }
 
+        console.log(`🔄 [${SERVICE_NAME}] Committing transaction...`);
         await client.query('COMMIT');
+        console.log(`✅ [${SERVICE_NAME}] Transaction committed`);
 
         res.status(201).json({
             success: true,
@@ -121,11 +140,14 @@ app.post('/api/sales', async (req, res) => {
         });
 
     } catch (err) {
+        console.log(`❌ [${SERVICE_NAME}] Error caught, rolling back...`);
         await client.query('ROLLBACK');
         console.error(`❌ [${SERVICE_NAME}] Error creating sale:`, err);
         res.status(500).json({ error: err.message });
     } finally {
+        console.log(`🔄 [${SERVICE_NAME}] Releasing client...`);
         client.release();
+        console.log(`✅ [${SERVICE_NAME}] Client released`);
     }
 });
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Filter, Edit, Trash2, AlertTriangle, Wifi, WifiOff, FileText, Bell } from 'lucide-react';
+import { Search, Plus, Filter, Edit, Trash2, AlertTriangle, Wifi, WifiOff, FileText, Bell, X } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import socketService from '../../services/socketService';
 import Input from '../../components/Input';
@@ -15,6 +15,7 @@ const Inventory = () => {
     const [editingProduct, setEditingProduct] = useState(null);
     const [realtimeUpdates, setRealtimeUpdates] = useState([]);
     const [isConnected, setIsConnected] = useState(false);
+    const [showAlerts, setShowAlerts] = useState(true);
 
     useEffect(() => {
         // Check connection status
@@ -59,7 +60,7 @@ const Inventory = () => {
 
     const fetchAlerts = async () => {
         try {
-            const res = await fetch('http://localhost:3001/api/inventory/alerts');
+            const res = await fetch('http://localhost:3000/api/alerts');
             if (res.ok) {
                 const data = await res.json();
                 setAlerts(data);
@@ -84,20 +85,94 @@ const Inventory = () => {
         setIsModalOpen(true);
     };
 
-    const handleDelete = (id) => {
+    const handleDelete = async (id) => {
         if (window.confirm('¿Estás seguro de eliminar este producto?')) {
-            setProducts(prev => prev.filter(p => p.id !== id));
+            try {
+                const res = await fetch(`http://localhost:3000/api/products/${id}`, {
+                    method: 'DELETE'
+                });
+                if (res.ok) {
+                    setProducts(prev => prev.filter(p => p.id !== id));
+                    alert('Producto eliminado correctamente');
+                } else {
+                    alert('Error al eliminar el producto');
+                }
+            } catch (error) {
+                console.error('Error deleting product:', error);
+                alert('Error al eliminar el producto');
+            }
         }
     };
 
-    const handleSave = (product) => {
-        if (editingProduct) {
-            setProducts(prev => prev.map(p => p.id === product.id ? product : p));
-        } else {
-            setProducts(prev => [...prev, { ...product, id: Date.now() }]);
+    const handleSave = async (product) => {
+        try {
+            if (editingProduct) {
+                // Editar producto existente
+                const res = await fetch(`http://localhost:3000/api/products/${product.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: product.name,
+                        price: product.price,
+                        cost: product.cost,
+                        stock: product.stock,
+                        minStock: product.minStock || 5,
+                        category: product.category,
+                        image: product.image || ''
+                    })
+                });
+                
+                if (res.ok) {
+                    const updatedProduct = await res.json();
+                    setProducts(prev => prev.map(p => p.id === updatedProduct.id ? {
+                        ...updatedProduct,
+                        price: parseFloat(updatedProduct.price),
+                        cost: parseFloat(updatedProduct.cost),
+                        stock: parseInt(updatedProduct.stock),
+                        minstock: parseInt(updatedProduct.minstock)
+                    } : p));
+                    setIsModalOpen(false);
+                    setEditingProduct(null);
+                } else {
+                    const error = await res.json();
+                    alert('Error al actualizar el producto: ' + (error.error || 'Error desconocido'));
+                }
+            } else {
+                // Crear nuevo producto
+                const res = await fetch('http://localhost:3000/api/products', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: product.name,
+                        price: product.price,
+                        cost: product.cost,
+                        stock: product.stock,
+                        minStock: product.minStock || 5,
+                        category: product.category,
+                        image: product.image || ''
+                    })
+                });
+                
+                if (res.ok) {
+                    const newProduct = await res.json();
+                    setProducts(prev => [...prev, {
+                        ...newProduct,
+                        price: parseFloat(newProduct.price),
+                        cost: parseFloat(newProduct.cost),
+                        stock: parseInt(newProduct.stock),
+                        minstock: parseInt(newProduct.minstock)
+                    }]);
+                    setIsModalOpen(false);
+                    setEditingProduct(null);
+                } else {
+                    const error = await res.json();
+                    alert('Error al crear el producto: ' + (error.error || 'Error desconocido'));
+                }
+            }
+        } catch (error) {
+            console.error('Error saving product:', error);
+            alert('Error al guardar el producto: ' + error.message);
         }
-        setIsModalOpen(false);
-        setEditingProduct(null);
     };
 
     return (
@@ -136,9 +211,16 @@ const Inventory = () => {
                 ))}
             </div>
             {/* INV-01: Alerts Dashboard */}
-            {alerts.length > 0 && (
+            {showAlerts && alerts.length > 0 && (
                 <div className="alerts-section">
-                    <h3 className="alerts-title"><Bell size={18} /> Alertas de Reposición (Dinámicas)</h3>
+                    <div className="alerts-header">
+                        <h3 className="alerts-title">
+                            <Bell size={16} /> Alertas de Reposición ({alerts.length})
+                        </h3>
+                        <button className="alerts-close-btn" onClick={() => setShowAlerts(false)} title="Cerrar alertas">
+                            <X size={18} />
+                        </button>
+                    </div>
                     <div className="alerts-grid">
                         {alerts.map(alert => (
                             <div key={alert.id} className="alert-card">
@@ -148,11 +230,7 @@ const Inventory = () => {
                                 </div>
                                 <div className="alert-details">
                                     <p>Stock Actual: <strong>{alert.stock}</strong></p>
-                                    <p>Ventas Diarias (30d): <strong>{alert.avgDailySales}</strong></p>
-                                    <p>Mínimo Dinámico: <strong>{alert.dynamicMinStock}</strong></p>
-                                    <div className="alert-suggestion">
-                                        Sugerencia: Pedir <strong>{alert.suggestedReorder}</strong> un.
-                                    </div>
+                                    <p>Mínimo: <strong>{alert.minstock}</strong></p>
                                 </div>
                             </div>
                         ))}

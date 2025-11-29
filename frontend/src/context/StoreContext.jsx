@@ -207,6 +207,10 @@ export const StoreProvider = ({ children }) => {
     const fetchAllSupplierProducts = async () => {
         try {
             const res = await fetch('http://localhost:3000/api/supplier-products');
+            if (!res.ok) {
+                console.error("Failed to fetch supplier products:", res.status);
+                return [];
+            }
             const data = await res.json();
             if (Array.isArray(data)) {
                 return data;
@@ -355,8 +359,14 @@ export const StoreProvider = ({ children }) => {
 
     const syncSupplierPrices = async (supplierId) => {
         try {
+            console.log(`🔄 Cargando catálogo del proveedor ${supplierId}...`);
             const res = await fetch(`http://localhost:3000/api/supplier-products/${supplierId}`);
+            if (!res.ok) {
+                console.error('Failed to fetch supplier products:', res.status, await res.text());
+                return false;
+            }
             const data = await res.json();
+            console.log(`📦 Datos recibidos del proveedor ${supplierId}:`, data);
 
             // Update supplier products with the fetched data
             const formattedProducts = data.map(item => ({
@@ -364,8 +374,8 @@ export const StoreProvider = ({ children }) => {
                 supplierId: item.supplierid,
                 productId: item.productid,
                 name: item.productname,
-                price: item.price,
-                stock: item.stock,
+                price: parseFloat(item.price),
+                stock: parseInt(item.stock),
                 category: item.category
             }));
 
@@ -375,10 +385,10 @@ export const StoreProvider = ({ children }) => {
                 ...formattedProducts
             ]);
 
-            console.log(`Loaded ${formattedProducts.length} products for supplier ${supplierId}`);
+            console.log(`✅ Cargados ${formattedProducts.length} productos para proveedor ${supplierId}`);
             return true;
         } catch (error) {
-            console.error('Error syncing supplier prices:', error);
+            console.error('❌ Error syncing supplier prices:', error);
             return false;
         }
     };
@@ -431,34 +441,40 @@ export const StoreProvider = ({ children }) => {
 
     const updatePurchaseStatus = async (purchaseId, newStatus) => {
         try {
-            await fetch(`http://localhost:3000/api/purchases/${purchaseId}/status`, {
+            const res = await fetch(`http://localhost:3000/api/purchases/${purchaseId}/status`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: newStatus })
             });
 
-            setPurchases(prev => prev.map(p => {
-                if (p.id === purchaseId) {
-                    if (newStatus === 'Confirmed' && p.status !== 'Confirmed') {
-                        // Increase Stock (Optimistic - ideally backend handles this transactionally)
-                        // For now we just update frontend state, assuming backend logic could be added later or separate stock adjustment
-                        setProducts(currentProducts => currentProducts.map(prod => {
-                            const item = p.items.find(i => i.productId === prod.id);
-                            return item ? { ...prod, stock: prod.stock + item.quantity, cost: item.cost || prod.cost } : prod;
-                        }));
-                    } else if (newStatus === 'Cancelled' && p.status === 'Confirmed') {
-                        // Decrease Stock
-                        setProducts(currentProducts => currentProducts.map(prod => {
-                            const item = p.items.find(i => i.productId === prod.id);
-                            return item ? { ...prod, stock: prod.stock - item.quantity } : prod;
-                        }));
-                    }
-                    return { ...p, status: newStatus };
-                }
-                return p;
-            }));
-        } catch (err) {
-            console.error("Error updating purchase status:", err);
+            if (!res.ok) {
+                throw new Error('Failed to update purchase status');
+            }
+
+            // Update local purchase status
+            setPurchases(prev => prev.map(p => 
+                p.id === purchaseId ? { ...p, status: newStatus } : p
+            ));
+
+            // If confirmed, reload products from server to get updated stock
+            if (newStatus === 'Confirmed') {
+                const productsRes = await fetch('http://localhost:3000/api/products');
+                const productsData = await productsRes.json();
+                setProducts(productsData.map(p => ({
+                    ...p,
+                    price: parseFloat(p.price),
+                    cost: parseFloat(p.cost),
+                    stock: parseInt(p.stock),
+                    minstock: parseInt(p.minstock)
+                })));
+                console.log('✅ Inventario actualizado después de confirmar compra');
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Error updating purchase status:', error);
+            alert('Error al actualizar el estado de la compra');
+            return false;
         }
     };
 

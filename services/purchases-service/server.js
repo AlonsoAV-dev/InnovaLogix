@@ -89,8 +89,28 @@ app.delete('/api/suppliers/:id', async (req, res) => {
 
 app.get('/api/purchases', async (req, res) => {
     try {
-        const result = await pool.query("SELECT * FROM purchases ORDER BY date DESC");
-        res.json(result.rows);
+        const purchases = await pool.query("SELECT * FROM purchases ORDER BY date DESC");
+        
+        // Get items for each purchase
+        const purchasesWithItems = await Promise.all(
+            purchases.rows.map(async (purchase) => {
+                const items = await pool.query(
+                    "SELECT * FROM purchase_items WHERE purchaseid = $1",
+                    [purchase.id]
+                );
+                return {
+                    ...purchase,
+                    total: parseFloat(purchase.total),
+                    items: items.rows.map(item => ({
+                        ...item,
+                        quantity: parseInt(item.quantity),
+                        cost: parseFloat(item.cost)
+                    }))
+                };
+            })
+        );
+        
+        res.json(purchasesWithItems);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -124,8 +144,8 @@ app.post('/api/purchases', async (req, res) => {
         const total = items.reduce((sum, item) => sum + (item.quantity * item.cost), 0);
         
         const purchaseRes = await client.query(
-            `INSERT INTO purchases (supplierId, supplierName, total, invoiceNumber, status, estimatedDelivery) 
-             VALUES ($1, $2, $3, $4, 'Pendiente', $5) RETURNING *`,
+            `INSERT INTO purchases (supplierid, suppliername, total, invoicenumber, status, estimateddelivery) 
+             VALUES ($1, $2, $3, $4, 'Pending', $5) RETURNING *`,
             [supplierId, supplierName, total, invoiceNumber, estimatedDelivery]
         );
         
@@ -133,7 +153,7 @@ app.post('/api/purchases', async (req, res) => {
         
         for (const item of items) {
             await client.query(
-                "INSERT INTO purchase_items (purchaseId, productId, productName, quantity, cost) VALUES ($1, $2, $3, $4, $5)",
+                "INSERT INTO purchase_items (purchaseid, productid, productname, quantity, cost) VALUES ($1, $2, $3, $4, $5)",
                 [purchaseId, item.productId, item.productName, item.quantity, item.cost]
             );
         }
@@ -173,7 +193,7 @@ app.put('/api/purchases/:id/status', async (req, res) => {
         
         // If confirmed, update inventory
         if (status === 'Confirmed') {
-            const items = await client.query("SELECT * FROM purchase_items WHERE purchaseId = $1", [req.params.id]);
+            const items = await client.query("SELECT * FROM purchase_items WHERE purchaseid = $1", [req.params.id]);
             
             for (const item of items.rows) {
                 try {
@@ -206,6 +226,72 @@ app.put('/api/purchases/:id/status', async (req, res) => {
     }
 });
 
+// ============ SUPPLIER PRODUCTS (Catalog) ============
+
+// Get all supplier products
+app.get('/api/supplier-products', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT sp.*, s.name as suppliername 
+            FROM supplier_products sp
+            JOIN suppliers s ON sp.supplierid = s.id
+            ORDER BY sp.productname, sp.price ASC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get products for a specific supplier
+app.get('/api/supplier-products/:supplierId', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT sp.*, s.name as suppliername 
+            FROM supplier_products sp
+            JOIN suppliers s ON sp.supplierid = s.id
+            WHERE sp.supplierid = $1
+            ORDER BY sp.productname ASC
+        `, [req.params.supplierId]);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Add product to supplier catalog
+app.post('/api/supplier-products', async (req, res) => {
+    const { supplierId, productId, productName, price, stock } = req.body;
+    try {
+        const result = await pool.query(
+            `INSERT INTO supplier_products (supplierid, productid, productname, price, stock) 
+             VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+            [supplierId, productId, productName, price, stock]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Update supplier product
+app.put('/api/supplier-products/:id', async (req, res) => {
+    const { price, stock } = req.body;
+    try {
+        const result = await pool.query(
+            `UPDATE supplier_products SET price = $1, stock = $2, updatedat = CURRENT_TIMESTAMP 
+             WHERE id = $3 RETURNING *`,
+            [price, stock, req.params.id]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Supplier product not found' });
+        }
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ============ PRICE COMPARISON ============
 
 app.get('/api/price-comparison/:productId', async (req, res) => {
@@ -213,8 +299,8 @@ app.get('/api/price-comparison/:productId', async (req, res) => {
         const result = await pool.query(`
             SELECT sp.*, s.name as supplierName 
             FROM supplier_products sp
-            JOIN suppliers s ON sp.supplierId = s.id
-            WHERE sp.productId = $1
+            JOIN suppliers s ON sp.supplierid = s.id
+            WHERE sp.productid = $1
             ORDER BY sp.price ASC
         `, [req.params.productId]);
         
@@ -229,8 +315,8 @@ app.get('/api/price-comparison', async (req, res) => {
         const result = await pool.query(`
             SELECT sp.*, s.name as supplierName 
             FROM supplier_products sp
-            JOIN suppliers s ON sp.supplierId = s.id
-            ORDER BY sp.productId, sp.price ASC
+            JOIN suppliers s ON sp.supplierid = s.id
+            ORDER BY sp.productid, sp.price ASC
         `);
         
         res.json(result.rows);
