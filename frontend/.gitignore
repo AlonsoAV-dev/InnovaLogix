@@ -7,7 +7,6 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Dependencies
 node_modules
 dist
 dist-ssr
@@ -27,19 +26,4 @@ dist-ssr
 # Environment variables
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Database backups
-*.sql.backup
-database_dump.sql
-
-# Legacy code (old monolith)
-legacy/
-
-# Utility scripts
-scripts/check_*.js
-scripts/debug_*.js
-scripts/populate_*.js
-scripts/test_*.js
+.env.production

@@ -1,0 +1,205 @@
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import pool, { initDB } from './database.js';
+
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 3002;
+const SERVICE_NAME = process.env.SERVICE_NAME || 'crm-service';
+
+app.use(cors());
+app.use(express.json());
+
+await initDB();
+
+// Health Check
+app.get('/health', (req, res) => {
+    res.json({ service: SERVICE_NAME, status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// ============ CUSTOMERS ============
+
+app.get('/api/customers', async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM customers ORDER BY id DESC");
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/customers/:id', async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM customers WHERE id = $1", [req.params.id]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Customer not found' });
+        }
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/customers', async (req, res) => {
+    const { name, email, phone, type } = req.body;
+    try {
+        const result = await pool.query(
+            "INSERT INTO customers (name, email, phone, type, points, totalPurchases, lastVisit) VALUES ($1, $2, $3, $4, 0, 0, CURRENT_TIMESTAMP) RETURNING *",
+            [name, email, phone, type || 'Nuevo']
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/customers/:id', async (req, res) => {
+    const { name, email, phone, type, points, totalPurchases } = req.body;
+    try {
+        const result = await pool.query(
+            `UPDATE customers SET name = $1, email = $2, phone = $3, type = $4, points = $5, totalPurchases = $6, updatedAt = CURRENT_TIMESTAMP WHERE id = $7 RETURNING *`,
+            [name, email, phone, type, points, totalPurchases, req.params.id]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Customer not found' });
+        }
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/customers/:id', async (req, res) => {
+    try {
+        const result = await pool.query("DELETE FROM customers WHERE id = $1 RETURNING *", [req.params.id]);
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Customer not found' });
+        }
+        res.json({ message: 'Customer deleted', customer: result.rows[0] });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Update customer points and purchases (called from POS service)
+app.post('/api/customers/:id/purchase', async (req, res) => {
+    const { amount, points } = req.body;
+    try {
+        const result = await pool.query(
+            `UPDATE customers 
+             SET totalPurchases = totalPurchases + $1, 
+                 points = points + $2, 
+                 lastVisit = CURRENT_TIMESTAMP,
+                 updatedAt = CURRENT_TIMESTAMP
+             WHERE id = $3 RETURNING *`,
+            [amount, points, req.params.id]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Customer not found' });
+        }
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ============ CLAIMS ============
+
+app.get('/api/claims', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT c.*, cu.name as customerName 
+            FROM claims c 
+            LEFT JOIN customers cu ON c.customerId = cu.id 
+            ORDER BY c.date DESC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/claims', async (req, res) => {
+    const { customerId, type, product, reason, status } = req.body;
+    try {
+        const result = await pool.query(
+            "INSERT INTO claims (customerId, type, product, reason, status, date) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP) RETURNING *",
+            [customerId, type, product, reason, status || 'Pendiente']
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/claims/:id', async (req, res) => {
+    const { status, resolution } = req.body;
+    try {
+        const result = await pool.query(
+            `UPDATE claims SET status = $1, resolution = $2, resolvedAt = CASE WHEN $1 = 'Resuelto' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id = $3 RETURNING *`,
+            [status, resolution, req.params.id]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Claim not found' });
+        }
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ============ SURVEYS ============
+
+app.get('/api/surveys', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT s.*, c.name as customerName 
+            FROM surveys s 
+            LEFT JOIN customers c ON s.customerId = c.id 
+            ORDER BY s.date DESC
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/surveys', async (req, res) => {
+    const { customerId, rating, comment } = req.body;
+    try {
+        const result = await pool.query(
+            "INSERT INTO surveys (customerId, rating, comment, date) VALUES ($1, $2, $3, CURRENT_TIMESTAMP) RETURNING *",
+            [customerId, rating, comment]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Get customer satisfaction average
+app.get('/api/surveys/average', async (req, res) => {
+    try {
+        const result = await pool.query("SELECT AVG(rating)::numeric(10,2) as average FROM surveys");
+        res.json({ average: parseFloat(result.rows[0].average) || 0 });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ============ LOYALTY PROGRAM ============
+
+app.get('/api/loyalty/top-customers', async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM customers ORDER BY points DESC LIMIT 10");
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.listen(PORT, () => {
+    console.log(`🚀 [${SERVICE_NAME}] Running on port ${PORT}`);
+});
