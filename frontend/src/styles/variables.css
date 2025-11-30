@@ -1,4 +1,6 @@
-:root {
+/* Dark Theme (Default) */
+:root,
+[data-theme="dark"] {
   /* Colors - Outdoor/Premium Theme */
   --color-primary: #2E7D32; /* Forest Green */
   --color-primary-hover: #1B5E20;
@@ -8,16 +10,56 @@
   --color-bg-main: #121212; /* Deep Dark Background */
   --color-bg-card: #1E1E1E; /* Card Background */
   --color-bg-sidebar: #0F0F0F;
+  --color-bg-hover: rgba(255, 255, 255, 0.05);
   
   --color-text-main: #E0E0E0;
   --color-text-muted: #A0A0A0;
   --color-text-inverse: #FFFFFF;
+  --color-text-primary: #E0E0E0;
+  --color-text-secondary: #A0A0A0;
   
   --color-border: #333333;
   --color-success: #4CAF50;
   --color-warning: #FFC107;
   --color-error: #F44336;
 
+  /* Effects */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.3);
+}
+
+/* Light Theme */
+[data-theme="light"] {
+  /* Colors - Light Mode */
+  --color-primary: #2E7D32;
+  --color-primary-hover: #1B5E20;
+  --color-secondary: #FF6F00;
+  --color-secondary-hover: #E65100;
+  
+  --color-bg-main: #F5F5F5; /* Light Gray Background */
+  --color-bg-card: #FFFFFF; /* White Cards */
+  --color-bg-sidebar: #FFFFFF;
+  --color-bg-hover: rgba(0, 0, 0, 0.05);
+  
+  --color-text-main: #212121;
+  --color-text-muted: #757575;
+  --color-text-inverse: #FFFFFF;
+  --color-text-primary: #212121;
+  --color-text-secondary: #757575;
+  
+  --color-border: #E0E0E0;
+  --color-success: #4CAF50;
+  --color-warning: #FFC107;
+  --color-error: #F44336;
+
+  /* Effects */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.15);
+}
+
+:root {
   /* Typography */
   --font-family: 'Inter', system-ui, -apple-system, sans-serif;
   --font-size-sm: 0.875rem;
@@ -33,15 +75,13 @@
   --spacing-lg: 1.5rem;
   --spacing-xl: 2rem;
 
-  /* Effects */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.3);
+  /* Radius */
   --radius-sm: 0.25rem;
   --radius-md: 0.5rem;
   --radius-lg: 1rem;
   
   --transition-fast: 0.2s ease;
+  --border-radius: 0.5rem;
 }
 
 body {
@@ -50,6 +90,7 @@ body {
   font-family: var(--font-family);
   margin: 0;
   -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Scrollbar */

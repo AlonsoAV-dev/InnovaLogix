@@ -4,6 +4,7 @@
     width: 100vw;
     overflow: hidden;
     background-color: var(--color-bg-main);
+    transition: background-color 0.3s ease;
 }
 
 .main-content {
@@ -11,10 +12,27 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    min-width: 0;
 }
 
 .page-content {
     flex: 1;
     overflow-y: auto;
     padding: var(--spacing-lg);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 1000;
+        box-shadow: var(--shadow-lg);
+    }
+    
+    .sidebar-collapsed .sidebar {
+        margin-left: -260px;
+    }
 }
