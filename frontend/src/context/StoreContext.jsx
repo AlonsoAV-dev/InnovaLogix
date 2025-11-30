@@ -46,8 +46,7 @@ export const StoreProvider = ({ children }) => {
         };
         loadData();
 
-        // Connect to WebSocket and listen for stock updates
-        socketService.connect();
+        // Listen for stock updates (connection already initialized in App.jsx)
         const listenerId = socketService.onStockUpdate((data) => {
             console.log('🔄 Actualizando stock en tiempo real:', data);
             

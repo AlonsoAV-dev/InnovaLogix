@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import pool, { initDB } from './database.js';
 
 dotenv.config();
@@ -11,10 +13,28 @@ const PORT = process.env.PORT || 3003;
 const SERVICE_NAME = process.env.SERVICE_NAME || 'purchases-service';
 const INVENTORY_SERVICE_URL = process.env.INVENTORY_SERVICE_URL || 'http://localhost:3001';
 
+// Create HTTP server and Socket.IO instance
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST", "PUT", "DELETE"]
+    }
+});
+
 app.use(cors());
 app.use(express.json());
 
 await initDB();
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+    console.log(`🔌 [${SERVICE_NAME}] Client connected:`, socket.id);
+    
+    socket.on('disconnect', () => {
+        console.log(`🔌 [${SERVICE_NAME}] Client disconnected:`, socket.id);
+    });
+});
 
 // Health Check
 app.get('/health', (req, res) => {
@@ -160,6 +180,15 @@ app.post('/api/purchases', async (req, res) => {
         
         await client.query('COMMIT');
         
+        // Emit purchase created notification
+        io.emit('purchaseCreated', {
+            purchaseId,
+            supplierName,
+            total,
+            status: 'Pending'
+        });
+        console.log(`📢 [${SERVICE_NAME}] Purchase created notification emitted`);
+        
         res.status(201).json({
             ...purchaseRes.rows[0],
             items
@@ -215,6 +244,23 @@ app.put('/api/purchases/:id/status', async (req, res) => {
         }
         
         await client.query('COMMIT');
+        
+        // Emit purchase status notification
+        const purchaseData = purchase.rows[0];
+        if (status === 'Confirmed') {
+            io.emit('purchaseConfirmed', {
+                purchaseId: req.params.id,
+                supplierName: purchaseData.suppliername,
+                total: purchaseData.total
+            });
+            console.log(`📢 [${SERVICE_NAME}] Purchase confirmed notification emitted`);
+        } else if (status === 'Cancelled') {
+            io.emit('purchaseCancelled', {
+                purchaseId: req.params.id,
+                supplierName: purchaseData.suppliername
+            });
+            console.log(`📢 [${SERVICE_NAME}] Purchase cancelled notification emitted`);
+        }
         
         res.json({ message: 'Purchase status updated', status });
     } catch (err) {
@@ -325,7 +371,8 @@ app.get('/api/price-comparison', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
     console.log(`🚀 [${SERVICE_NAME}] Running on port ${PORT}`);
+    console.log(`🔌 [${SERVICE_NAME}] WebSocket server ready`);
     console.log(`🔗 Connected to Inventory Service: ${INVENTORY_SERVICE_URL}`);
 });

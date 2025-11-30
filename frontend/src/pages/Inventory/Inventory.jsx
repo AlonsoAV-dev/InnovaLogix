@@ -19,7 +19,7 @@ const Inventory = () => {
 
     useEffect(() => {
         // Check connection status
-        setIsConnected(socketService.isConnected());
+        setIsConnected(socketService.isConnected('inventory'));
 
         // Listen for real-time stock updates
         const listenerId = socketService.onStockUpdate((data) => {
@@ -40,7 +40,7 @@ const Inventory = () => {
 
         // Check connection periodically
         const connectionCheck = setInterval(() => {
-            setIsConnected(socketService.isConnected());
+            setIsConnected(socketService.isConnected('inventory'));
         }, 3000);
 
         return () => {

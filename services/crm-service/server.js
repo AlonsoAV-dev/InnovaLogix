@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import pool, { initDB } from './database.js';
 
 dotenv.config();
@@ -9,10 +11,28 @@ const app = express();
 const PORT = process.env.PORT || 3002;
 const SERVICE_NAME = process.env.SERVICE_NAME || 'crm-service';
 
+// Create HTTP server and Socket.IO instance
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST", "PUT", "DELETE"]
+    }
+});
+
 app.use(cors());
 app.use(express.json());
 
 await initDB();
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+    console.log(`🔌 [${SERVICE_NAME}] Client connected:`, socket.id);
+    
+    socket.on('disconnect', () => {
+        console.log(`🔌 [${SERVICE_NAME}] Client disconnected:`, socket.id);
+    });
+});
 
 // Health Check
 app.get('/health', (req, res) => {
@@ -49,6 +69,15 @@ app.post('/api/customers', async (req, res) => {
             "INSERT INTO customers (name, email, phone, type, points, totalPurchases, lastVisit) VALUES ($1, $2, $3, $4, 0, 0, CURRENT_TIMESTAMP) RETURNING *",
             [name, email, phone, type || 'Nuevo']
         );
+        
+        // Emit new customer notification
+        io.emit('newCustomer', {
+            customerId: result.rows[0].id,
+            customerName: name,
+            email
+        });
+        console.log(`📢 [${SERVICE_NAME}] New customer notification emitted`);
+        
         res.status(201).json(result.rows[0]);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -124,10 +153,25 @@ app.get('/api/claims', async (req, res) => {
 app.post('/api/claims', async (req, res) => {
     const { customerId, type, product, reason, status } = req.body;
     try {
+        // Get customer name
+        const customer = await pool.query("SELECT name FROM customers WHERE id = $1", [customerId]);
+        const customerName = customer.rows[0]?.name || 'Cliente';
+        
         const result = await pool.query(
             "INSERT INTO claims (customerId, type, product, reason, status, date) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP) RETURNING *",
             [customerId, type, product, reason, status || 'Pendiente']
         );
+        
+        // Emit new claim notification
+        io.emit('newClaim', {
+            claimId: result.rows[0].id,
+            customerName,
+            type,
+            product,
+            status: status || 'Pendiente'
+        });
+        console.log(`📢 [${SERVICE_NAME}] New claim notification emitted`);
+        
         res.status(201).json(result.rows[0]);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -200,6 +244,7 @@ app.get('/api/loyalty/top-customers', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
     console.log(`🚀 [${SERVICE_NAME}] Running on port ${PORT}`);
+    console.log(`🔌 [${SERVICE_NAME}] WebSocket server ready`);
 });

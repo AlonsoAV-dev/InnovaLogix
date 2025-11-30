@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import pool, { initDB } from './database.js';
 
 dotenv.config();
@@ -12,10 +14,28 @@ const SERVICE_NAME = process.env.SERVICE_NAME || 'pos-service';
 const INVENTORY_SERVICE_URL = process.env.INVENTORY_SERVICE_URL || 'http://localhost:3001';
 const CRM_SERVICE_URL = process.env.CRM_SERVICE_URL || 'http://localhost:3002';
 
+// Create HTTP server and Socket.IO instance
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST", "PUT", "DELETE"]
+    }
+});
+
 app.use(cors());
 app.use(express.json());
 
 await initDB();
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+    console.log(`🔌 [${SERVICE_NAME}] Client connected:`, socket.id);
+    
+    socket.on('disconnect', () => {
+        console.log(`🔌 [${SERVICE_NAME}] Client disconnected:`, socket.id);
+    });
+});
 
 app.get('/health', (req, res) => {
     res.json({ service: SERVICE_NAME, status: 'OK', timestamp: new Date().toISOString() });
@@ -133,6 +153,16 @@ app.post('/api/sales', async (req, res) => {
         await client.query('COMMIT');
         console.log(`✅ [${SERVICE_NAME}] Transaction committed`);
 
+        // Emit sale notification
+        io.emit('saleCompleted', {
+            saleId,
+            total,
+            items,
+            paymentMethod,
+            timestamp: date
+        });
+        console.log(`📢 [${SERVICE_NAME}] Sale notification emitted`);
+
         res.status(201).json({
             success: true,
             saleId,
@@ -174,8 +204,9 @@ app.get('/api/sales/stats/total', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
     console.log(`🚀 [${SERVICE_NAME}] Running on port ${PORT}`);
+    console.log(`🔌 [${SERVICE_NAME}] WebSocket server ready`);
     console.log(`🔗 Inventory Service: ${INVENTORY_SERVICE_URL}`);
     console.log(`🔗 CRM Service: ${CRM_SERVICE_URL}`);
 });
