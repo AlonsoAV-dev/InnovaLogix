@@ -1,9 +1,11 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, ShoppingCart, Package, ShoppingBag, Users, BarChart3 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import './Sidebar.css';
 
 const Sidebar = () => {
+    const { user } = useAuth();
     const navItems = [
         { path: '/pos', label: 'Ventas', icon: ShoppingCart },
         { path: '/inventory', label: 'Inventario', icon: Package },
@@ -36,10 +38,15 @@ const Sidebar = () => {
 
             <div className="sidebar-footer">
                 <div className="user-info">
-                    <div className="avatar">AD</div>
+                    <div className="avatar">
+                        {user?.name?.substring(0, 2).toUpperCase() || 'US'}
+                    </div>
                     <div className="user-details">
-                        <span className="user-name">Admin</span>
-                        <span className="user-role">Gerente</span>
+                        <span className="user-name">{user?.name || 'Usuario'}</span>
+                        <span className="user-role">
+                            {user?.role === 'admin' ? 'Administrador' : 
+                             user?.role === 'support' ? 'Soporte' : 'Usuario'}
+                        </span>
                     </div>
                 </div>
             </div>

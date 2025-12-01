@@ -59,6 +59,32 @@
     gap: var(--spacing-md);
 }
 
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: 6px 12px;
+    background: var(--color-bg-main);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+}
+
+.user-info span {
+    color: var(--color-text-main);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+}
+
+.user-role-badge {
+    background: var(--color-primary);
+    color: var(--color-text-inverse);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
 .icon-button {
     background: none;
     border: none;
@@ -76,6 +102,15 @@
 .icon-button:hover {
     background-color: var(--color-bg-hover);
     color: var(--color-text-main);
+}
+
+.logout-button {
+    color: var(--color-error);
+}
+
+.logout-button:hover {
+    background-color: rgba(244, 67, 54, 0.1);
+    color: var(--color-error);
 }
 
 .notification-badge {

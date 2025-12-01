@@ -25,12 +25,182 @@ app.use(express.json());
 
 await initDB();
 
+// ============ SUPPORT CHAT - IN MEMORY ============
+const pendingRequests = new Map(); // socketId => { clientName, timestamp }
+const activeRooms = new Map(); // clientSocketId => { roomId, agentSocketId, clientName, agentName }
+const connectedUsers = new Map(); // socketId => { userName, userRole }
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
     console.log(`🔌 [${SERVICE_NAME}] Client connected:`, socket.id);
     
+    // ========== REGISTRO: Guardar rol del usuario ==========
+    socket.on('register_user', (data) => {
+        const { userName, userRole } = data;
+        connectedUsers.set(socket.id, { userName, userRole });
+        console.log(`👤 Usuario registrado: ${userName} (${userRole}) - Socket: ${socket.id}`);
+    });
+    
+    // ========== SOPORTE: Cliente solicita ayuda ==========
+    socket.on('solicitar_soporte', (data) => {
+        const { clientName } = data;
+        console.log(`🆘 ${clientName} solicita soporte`);
+        
+        pendingRequests.set(socket.id, {
+            clientName: clientName || 'Cliente',
+            timestamp: new Date()
+        });
+        
+        // Notificar SOLO a usuarios con rol 'support' o 'admin'
+        const solicitudData = {
+            clientSocketId: socket.id,
+            clientName: clientName || 'Cliente',
+            timestamp: new Date()
+        };
+        
+        connectedUsers.forEach((userData, socketId) => {
+            if (userData.userRole === 'support' || userData.userRole === 'admin') {
+                io.to(socketId).emit('nueva_solicitud', solicitudData);
+                console.log(`📢 Notificación enviada a ${userData.userName} (${userData.userRole})`);
+            }
+        });
+        
+        // Confirmar al cliente
+        socket.emit('esperando_agente', {
+            message: 'Se le está asignando un responsable, espere por favor...'
+        });
+    });
+    
+    // ========== SOPORTE: Agente acepta atender ==========
+    socket.on('agente_acepta', (data) => {
+        const { clientSocketId, agentName } = data;
+        const request = pendingRequests.get(clientSocketId);
+        
+        if (!request) {
+            socket.emit('error', { message: 'Solicitud no encontrada' });
+            return;
+        }
+        
+        const roomId = `room_${clientSocketId}`;
+        const room = {
+            roomId,
+            clientSocketId,
+            agentSocketId: socket.id,
+            clientName: request.clientName,
+            agentName: agentName || 'Agente'
+        };
+        
+        activeRooms.set(clientSocketId, room);
+        pendingRequests.delete(clientSocketId);
+        
+        // Unir a la sala
+        socket.join(roomId);
+        io.sockets.sockets.get(clientSocketId)?.join(roomId);
+        
+        // Notificar al cliente
+        io.to(clientSocketId).emit('agente_entra', {
+            agentName: room.agentName,
+            message: `${room.agentName} ha entrado al chat`
+        });
+        
+        // Notificar al agente
+        socket.emit('sala_creada', {
+            roomId,
+            clientName: room.clientName
+        });
+        
+        console.log(`✅ Sala creada: ${roomId}`);
+    });
+    
+    // ========== SOPORTE: Cliente envía mensaje ==========
+    socket.on('cliente_envia', (data) => {
+        const { message } = data;
+        const room = activeRooms.get(socket.id);
+        
+        if (!room) {
+            socket.emit('error', { message: 'No estás en una sala activa' });
+            return;
+        }
+        
+        io.to(room.roomId).emit('nuevo_mensaje_cliente', {
+            sender: room.clientName,
+            message,
+            timestamp: new Date()
+        });
+    });
+    
+    // ========== SOPORTE: Agente envía mensaje ==========
+    socket.on('agente_envia', (data) => {
+        const { clientSocketId, message } = data;
+        const room = activeRooms.get(clientSocketId);
+        
+        if (!room || room.agentSocketId !== socket.id) {
+            socket.emit('error', { message: 'No tienes acceso' });
+            return;
+        }
+        
+        io.to(room.roomId).emit('nuevo_mensaje_agente', {
+            sender: room.agentName,
+            message,
+            timestamp: new Date()
+        });
+    });
+    
+    // ========== SOPORTE: Cerrar chat ==========
+    socket.on('cerrar_chat', () => {
+        let room = activeRooms.get(socket.id);
+        
+        if (!room) {
+            // Buscar si es agente
+            for (const [key, val] of activeRooms.entries()) {
+                if (val.agentSocketId === socket.id) {
+                    room = val;
+                    break;
+                }
+            }
+        }
+        
+        if (room) {
+            io.to(room.roomId).emit('servicio_finalizado', {
+                message: 'El servicio ha finalizado. Gracias.'
+            });
+            
+            io.in(room.roomId).socketsLeave(room.roomId);
+            activeRooms.delete(room.clientSocketId);
+            console.log(`🔒 Chat cerrado: ${room.roomId}`);
+        }
+    });
+    
     socket.on('disconnect', () => {
         console.log(`🔌 [${SERVICE_NAME}] Client disconnected:`, socket.id);
+        
+        // Limpiar usuario conectado
+        connectedUsers.delete(socket.id);
+        
+        // Limpiar solicitudes pendientes
+        pendingRequests.delete(socket.id);
+        
+        // Limpiar salas activas si es cliente
+        let room = activeRooms.get(socket.id);
+        
+        // Si no es cliente, verificar si es agente
+        if (!room) {
+            for (const [key, val] of activeRooms.entries()) {
+                if (val.agentSocketId === socket.id) {
+                    room = val;
+                    activeRooms.delete(key);
+                    break;
+                }
+            }
+        } else {
+            activeRooms.delete(socket.id);
+        }
+        
+        if (room) {
+            io.to(room.roomId).emit('servicio_finalizado', {
+                message: 'El usuario se desconectó. Chat finalizado.'
+            });
+        }
     });
 });
 
