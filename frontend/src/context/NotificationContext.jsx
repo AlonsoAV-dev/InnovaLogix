@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import socketService from '../services/socketService';
+import notificationApi from '../services/notificationApi';
 
 const NotificationContext = createContext();
 
@@ -14,26 +15,92 @@ export const useNotifications = () => {
 export const NotificationProvider = ({ children }) => {
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [isLoading, setIsLoading] = useState(true);
 
-    // Add notification
+    // Load persisted notifications from database on mount
+    useEffect(() => {
+        const loadNotifications = async () => {
+            try {
+                console.log('📥 Loading persisted notifications from database...');
+                const persistedNotifications = await notificationApi.getAll(undefined, 50);
+                
+                // Convert database format to frontend format
+                const formattedNotifications = persistedNotifications.map(notif => ({
+                    id: notif.id,
+                    type: notif.type,
+                    category: notif.category,
+                    title: notif.title,
+                    message: notif.message,
+                    read: notif.read,
+                    timestamp: notif.createdat,
+                    metadata: notif.metadata,
+                    isPersisted: true, // Mark as from database
+                    autoRemove: false // Don't auto-remove persisted notifications
+                }));
+                
+                setNotifications(formattedNotifications);
+                setUnreadCount(formattedNotifications.filter(n => !n.read).length);
+                console.log(`✅ Loaded ${formattedNotifications.length} notifications (${formattedNotifications.filter(n => !n.read).length} unread)`);
+            } catch (error) {
+                console.error('❌ Error loading notifications:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadNotifications();
+    }, []);
+
+    // Reload notifications from database
+    const reloadNotifications = useCallback(async () => {
+        try {
+            const persistedNotifications = await notificationApi.getAll(undefined, 50);
+            const formattedNotifications = persistedNotifications.map(notif => ({
+                id: notif.id,
+                type: notif.type,
+                category: notif.category,
+                title: notif.title,
+                message: notif.message,
+                read: notif.read,
+                timestamp: notif.createdat,
+                metadata: notif.metadata,
+                isPersisted: true,
+                autoRemove: false
+            }));
+            
+            setNotifications(formattedNotifications);
+            setUnreadCount(formattedNotifications.filter(n => !n.read).length);
+        } catch (error) {
+            console.error('❌ Error reloading notifications:', error);
+        }
+    }, []);
+
+    // Add notification (only for temporary toasts, persisted ones reload from DB)
     const addNotification = useCallback((notification) => {
+        // If it's a persisted notification event (from WebSocket), reload from DB instead
+        if (notification.isPersisted !== false) {
+            console.log('🔄 Nueva notificación persistida, recargando desde BD...');
+            reloadNotifications();
+            return;
+        }
+
+        // Otherwise add as temporary toast
         const newNotification = {
             id: Date.now() + Math.random(),
             timestamp: new Date().toISOString(),
             read: false,
+            isPersisted: false,
             ...notification
         };
 
         setNotifications(prev => [newNotification, ...prev]);
         setUnreadCount(prev => prev + 1);
 
-        // Auto-remove after 10 seconds if it's a toast
-        if (notification.autoRemove !== false) {
-            setTimeout(() => {
-                removeNotification(newNotification.id);
-            }, 10000);
-        }
-    }, []);
+        // Auto-remove temporary notifications after 10 seconds
+        setTimeout(() => {
+            removeNotification(newNotification.id);
+        }, 10000);
+    }, [reloadNotifications]);
 
     // Remove notification
     const removeNotification = useCallback((id) => {
@@ -47,7 +114,18 @@ export const NotificationProvider = ({ children }) => {
     }, []);
 
     // Mark as read
-    const markAsRead = useCallback((id) => {
+    const markAsRead = useCallback(async (id) => {
+        const notification = notifications.find(n => n.id === id);
+        
+        // If it's a persisted notification, update in database
+        if (notification && notification.isPersisted) {
+            try {
+                await notificationApi.markAsRead(id);
+            } catch (error) {
+                console.error('❌ Error marking notification as read:', error);
+            }
+        }
+        
         setNotifications(prev => prev.map(n => {
             if (n.id === id && !n.read) {
                 setUnreadCount(count => Math.max(0, count - 1));
@@ -55,12 +133,17 @@ export const NotificationProvider = ({ children }) => {
             }
             return n;
         }));
-    }, []);
+    }, [notifications]);
 
     // Mark all as read
-    const markAllAsRead = useCallback(() => {
-        setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-        setUnreadCount(0);
+    const markAllAsRead = useCallback(async () => {
+        try {
+            await notificationApi.markAllAsRead();
+            setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+            setUnreadCount(0);
+        } catch (error) {
+            console.error('❌ Error marking all notifications as read:', error);
+        }
     }, []);
 
     // Clear all notifications
@@ -71,127 +154,74 @@ export const NotificationProvider = ({ children }) => {
 
     // Setup WebSocket listeners (connection already initialized in App.jsx)
     useEffect(() => {
-        // Inventory notifications
-        const inventoryListener = socketService.onStockUpdate((data) => {
-            const { action, productName, stock, minStock } = data;
-            
-            if (action === 'created') {
-                addNotification({
-                    type: 'success',
-                    category: 'inventory',
-                    title: 'Producto Creado',
-                    message: `${productName} ha sido agregado al inventario`,
-                    icon: '📦'
+        console.log('🔔 Configurando listeners de notificaciones...');
+
+        // Wait a bit for connections to establish
+        const setupTimer = setTimeout(() => {
+            console.log('🔌 Registrando listeners de eventos...');
+
+            // Inventory notifications
+            const inventoryListener = socketService.onStockUpdate((data) => {
+                console.log('📦 Evento stockUpdate recibido:', data);
+                // Reload notifications from database (backend already saved it)
+                reloadNotifications();
+            });
+
+            // POS notifications
+            const posListeners = [];
+            posListeners.push(socketService.on('pos', 'saleCompleted', (data) => {
+                console.log('💰 Evento saleCompleted recibido:', data);
+                reloadNotifications();
+            }));
+
+            // Purchase notifications
+            posListeners.push(socketService.on('purchases', 'purchaseCreated', (data) => {
+                console.log('🛒 Evento purchaseCreated recibido:', data);
+                reloadNotifications();
+            }));
+
+            posListeners.push(socketService.on('purchases', 'purchaseConfirmed', (data) => {
+                console.log('✅ Evento purchaseConfirmed recibido:', data);
+                reloadNotifications();
+            }));
+
+            posListeners.push(socketService.on('purchases', 'purchaseCancelled', (data) => {
+                console.log('❌ Evento purchaseCancelled recibido:', data);
+                reloadNotifications();
+            }));
+
+            // CRM notifications
+            posListeners.push(socketService.on('crm', 'newCustomer', (data) => {
+                console.log('👤 Evento newCustomer recibido:', data);
+                reloadNotifications();
+            }));
+
+            posListeners.push(socketService.on('crm', 'newClaim', (data) => {
+                console.log('📢 Evento newClaim recibido:', data);
+                reloadNotifications();
+            }));
+
+            console.log('✅ Listeners registrados correctamente');
+
+            // Store cleanup function
+            return () => {
+                socketService.offStockUpdate(inventoryListener);
+                posListeners.forEach(id => {
+                    if (id) socketService.off(id);
                 });
-            } else if (action === 'updated') {
-                addNotification({
-                    type: 'info',
-                    category: 'inventory',
-                    title: 'Stock Actualizado',
-                    message: `${productName}: ${stock} unidades disponibles`,
-                    icon: '📊'
-                });
-            } else if (action === 'low_stock' || (minStock && stock <= minStock)) {
-                addNotification({
-                    type: 'warning',
-                    category: 'inventory',
-                    title: 'Stock Bajo',
-                    message: `${productName} tiene solo ${stock} unidades`,
-                    icon: '⚠️',
-                    autoRemove: false
-                });
-            }
-        });
-
-        // POS notifications
-        const posListeners = [];
-        posListeners.push(socketService.on('pos', 'saleCompleted', (data) => {
-            addNotification({
-                type: 'success',
-                category: 'pos',
-                title: 'Venta Completada',
-                message: `Venta #${data.saleId} por S/ ${data.total?.toFixed(2)}`,
-                icon: '💰'
-            });
-        }));
-
-        // Purchase notifications
-        posListeners.push(socketService.on('purchases', 'purchaseCreated', (data) => {
-            addNotification({
-                type: 'info',
-                category: 'purchases',
-                title: 'Nueva Compra',
-                message: `Compra #${data.purchaseId} creada - ${data.supplierName}`,
-                icon: '🛒'
-            });
-        }));
-
-        posListeners.push(socketService.on('purchases', 'purchaseConfirmed', (data) => {
-            addNotification({
-                type: 'success',
-                category: 'purchases',
-                title: 'Compra Confirmada',
-                message: `Compra #${data.purchaseId} confirmada y stock actualizado`,
-                icon: '✅'
-            });
-        }));
-
-        posListeners.push(socketService.on('purchases', 'purchaseCancelled', (data) => {
-            addNotification({
-                type: 'error',
-                category: 'purchases',
-                title: 'Compra Cancelada',
-                message: `Compra #${data.purchaseId} ha sido cancelada`,
-                icon: '❌'
-            });
-        }));
-
-        // CRM notifications
-        posListeners.push(socketService.on('crm', 'newCustomer', (data) => {
-            addNotification({
-                type: 'success',
-                category: 'crm',
-                title: 'Nuevo Cliente',
-                message: `${data.customerName} registrado en el sistema`,
-                icon: '👤'
-            });
-        }));
-
-        posListeners.push(socketService.on('crm', 'newClaim', (data) => {
-            addNotification({
-                type: 'warning',
-                category: 'crm',
-                title: 'Nuevo Reclamo',
-                message: `Reclamo #${data.claimId} de ${data.customerName}`,
-                icon: '📢',
-                autoRemove: false
-            });
-        }));
-
-        // System notifications
-        posListeners.push(socketService.on('inventory', 'systemAlert', (data) => {
-            addNotification({
-                type: data.severity || 'info',
-                category: 'system',
-                title: data.title || 'Alerta del Sistema',
-                message: data.message,
-                icon: '🔔',
-                autoRemove: false
-            });
-        }));
+            };
+        }, 1000); // Wait 1 second for connections to establish
 
         // Cleanup
         return () => {
-            socketService.offStockUpdate(inventoryListener);
-            posListeners.forEach(id => {
-                if (id) socketService.off(id);
-            });
+            clearTimeout(setupTimer);
         };
-    }, [addNotification]);
+    }, [addNotification, reloadNotifications]);
 
     const value = {
         notifications,
         unreadCount,
+        isLoading,
         addNotification,
         removeNotification,
         markAsRead,

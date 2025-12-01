@@ -10,13 +10,24 @@ const NotificationCenter = ({ isOpen, onClose }) => {
     // Close when clicking outside
     useEffect(() => {
         const handleClickOutside = (event) => {
+            // Check if click is on the notification button itself (by checking for Bell icon or notification-badge)
+            const isNotificationButton = event.target.closest('.icon-button[title="Notificaciones"]') || 
+                                        event.target.closest('button[title="Notificaciones"]');
+            
+            if (isNotificationButton) {
+                return; // Don't close if clicking the notification button
+            }
+            
             if (panelRef.current && !panelRef.current.contains(event.target)) {
                 onClose();
             }
         };
 
         if (isOpen) {
-            document.addEventListener('mousedown', handleClickOutside);
+            // Use setTimeout to avoid closing immediately on the same click that opened it
+            setTimeout(() => {
+                document.addEventListener('mousedown', handleClickOutside);
+            }, 0);
         }
 
         return () => {

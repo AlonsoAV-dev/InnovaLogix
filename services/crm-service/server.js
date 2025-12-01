@@ -78,6 +78,13 @@ app.post('/api/customers', async (req, res) => {
         });
         console.log(`📢 [${SERVICE_NAME}] New customer notification emitted`);
         
+        // Save notification to database
+        await pool.query(
+            `INSERT INTO notifications (type, category, title, message, metadata, read, createdAt) 
+             VALUES ($1, $2, $3, $4, $5, FALSE, CURRENT_TIMESTAMP)`,
+            ['info', 'customer', 'Nuevo cliente', `Cliente registrado: ${name}`, JSON.stringify({ customerId: result.rows[0].id, customerName: name, email })]
+        );
+        
         res.status(201).json(result.rows[0]);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -172,6 +179,13 @@ app.post('/api/claims', async (req, res) => {
         });
         console.log(`📢 [${SERVICE_NAME}] New claim notification emitted`);
         
+        // Save notification to database
+        await pool.query(
+            `INSERT INTO notifications (type, category, title, message, metadata, read, createdAt) 
+             VALUES ($1, $2, $3, $4, $5, FALSE, CURRENT_TIMESTAMP)`,
+            ['warning', 'claim', 'Nuevo reclamo', `Reclamo de ${customerName}: ${type}`, JSON.stringify({ claimId: result.rows[0].id, customerName, type, product })]
+        );
+        
         res.status(201).json(result.rows[0]);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -239,6 +253,85 @@ app.get('/api/loyalty/top-customers', async (req, res) => {
     try {
         const result = await pool.query("SELECT * FROM customers ORDER BY points DESC LIMIT 10");
         res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ============ NOTIFICATIONS ============
+
+// Get all notifications (optionally filter by read status)
+app.get('/api/notifications', async (req, res) => {
+    try {
+        const { read, limit = 50 } = req.query;
+        let query = "SELECT * FROM notifications";
+        let params = [];
+        
+        if (read !== undefined) {
+            query += " WHERE read = $1";
+            params.push(read === 'true');
+        }
+        
+        query += " ORDER BY createdAt DESC LIMIT $" + (params.length + 1);
+        params.push(parseInt(limit));
+        
+        const result = await pool.query(query, params);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Create notification
+app.post('/api/notifications', async (req, res) => {
+    const { type, category, title, message, metadata } = req.body;
+    try {
+        const result = await pool.query(
+            `INSERT INTO notifications (type, category, title, message, metadata, read, createdAt) 
+             VALUES ($1, $2, $3, $4, $5, FALSE, CURRENT_TIMESTAMP) RETURNING *`,
+            [type, category, title, message, metadata ? JSON.stringify(metadata) : null]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Mark notification as read
+app.patch('/api/notifications/:id/read', async (req, res) => {
+    try {
+        const result = await pool.query(
+            "UPDATE notifications SET read = TRUE WHERE id = $1 RETURNING *",
+            [req.params.id]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Notification not found' });
+        }
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Mark all notifications as read
+app.patch('/api/notifications/read-all', async (req, res) => {
+    try {
+        const result = await pool.query(
+            "UPDATE notifications SET read = TRUE WHERE read = FALSE RETURNING COUNT(*)"
+        );
+        res.json({ message: 'All notifications marked as read', count: result.rowCount });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Delete old notifications (older than 30 days)
+app.delete('/api/notifications/cleanup', async (req, res) => {
+    try {
+        const result = await pool.query(
+            "DELETE FROM notifications WHERE createdAt < NOW() - INTERVAL '30 days' RETURNING COUNT(*)"
+        );
+        res.json({ message: 'Old notifications deleted', count: result.rowCount });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

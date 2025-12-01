@@ -16,48 +16,79 @@ class SocketService {
         };
         this.listeners = new Map();
         this.isInitialized = false; // Flag to prevent multiple initializations
+        this.connectionPromises = {}; // Store connection promises
     }
 
     connectAll() {
         // Prevent multiple connections
         if (this.isInitialized) {
             console.log('⚠️ SocketService already initialized. Skipping reconnection.');
-            return this.sockets;
+            return Promise.resolve(this.sockets);
         }
 
         console.log('🔌 Initializing WebSocket connections to all services...');
         this.isInitialized = true;
 
-        // Connect to all microservices
-        this.sockets.inventory = this.connectToService('inventory', INVENTORY_WS);
-        this.sockets.crm = this.connectToService('crm', CRM_WS);
-        this.sockets.purchases = this.connectToService('purchases', PURCHASES_WS);
-        this.sockets.pos = this.connectToService('pos', POS_WS);
+        // Connect to all microservices and store promises
+        this.connectionPromises.inventory = this.connectToService('inventory', INVENTORY_WS);
+        this.connectionPromises.crm = this.connectToService('crm', CRM_WS);
+        this.connectionPromises.purchases = this.connectToService('purchases', PURCHASES_WS);
+        this.connectionPromises.pos = this.connectToService('pos', POS_WS);
         
-        return this.sockets;
+        // Wait for all connections
+        return Promise.all([
+            this.connectionPromises.inventory,
+            this.connectionPromises.crm,
+            this.connectionPromises.purchases,
+            this.connectionPromises.pos
+        ]).then(() => {
+            console.log('✅ Todas las conexiones WebSocket establecidas');
+            return this.sockets;
+        }).catch(err => {
+            console.error('❌ Error al conectar algunos servicios:', err);
+            return this.sockets;
+        });
     }
 
     connectToService(serviceName, url) {
-        const socket = io(url, {
-            transports: ['websocket', 'polling'],
-            reconnection: true,
-            reconnectionDelay: 1000,
-            reconnectionAttempts: 5
-        });
+        return new Promise((resolve, reject) => {
+            const socket = io(url, {
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+                reconnectionDelay: 1000,
+                reconnectionAttempts: 5
+            });
 
-        socket.on('connect', () => {
-            console.log(`✅ WebSocket conectado [${serviceName}]:`, socket.id);
-        });
+            socket.on('connect', () => {
+                console.log(`✅ WebSocket conectado [${serviceName}]:`, socket.id);
+                this.sockets[serviceName] = socket;
+                resolve(socket);
+            });
 
-        socket.on('disconnect', (reason) => {
-            console.log(`⚠️  WebSocket desconectado [${serviceName}]:`, reason);
-        });
+            socket.on('disconnect', (reason) => {
+                console.log(`⚠️  WebSocket desconectado [${serviceName}]:`, reason);
+            });
 
-        socket.on('connect_error', (error) => {
-            console.error(`❌ Error de conexión WebSocket [${serviceName}]:`, error.message);
-        });
+            socket.on('connect_error', (error) => {
+                console.error(`❌ Error de conexión WebSocket [${serviceName}]:`, error.message);
+                // Still resolve to allow other connections to proceed
+                if (!this.sockets[serviceName]) {
+                    this.sockets[serviceName] = socket;
+                    resolve(socket);
+                }
+            });
 
-        return socket;
+            // Set socket immediately but mark as not connected
+            this.sockets[serviceName] = socket;
+            
+            // Timeout after 5 seconds
+            setTimeout(() => {
+                if (!socket.connected) {
+                    console.warn(`⏱️ Timeout conectando a ${serviceName}`);
+                    resolve(socket);
+                }
+            }, 5000);
+        });
     }
 
     disconnect() {

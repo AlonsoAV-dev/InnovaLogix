@@ -100,7 +100,7 @@ app.use('/api', (req, res, next) => {
     }
     
     // CRM Service
-    if (path.startsWith('/customers') || path.startsWith('/claims') || path.startsWith('/surveys') || path.startsWith('/loyalty')) {
+    if (path.startsWith('/customers') || path.startsWith('/claims') || path.startsWith('/surveys') || path.startsWith('/loyalty') || path.startsWith('/notifications')) {
         return proxyRequest(req, res, SERVICES.crm);
     }
     

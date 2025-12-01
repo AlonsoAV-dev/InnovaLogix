@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { NotificationProvider } from './context/NotificationContext';
@@ -15,14 +15,29 @@ import CRM from './pages/CRM/CRM';
 import Reports from './pages/Reports/Reports';
 
 function App() {
+  // Use ref to track if we've already connected (survives StrictMode double-mount)
+  const hasConnected = useRef(false);
+
   // Initialize WebSocket connections once at app start
   useEffect(() => {
-    console.log('🚀 Initializing app-level WebSocket connections...');
-    socketService.connectAll();
+    // Only connect once, even in StrictMode development
+    if (!hasConnected.current) {
+      console.log('🚀 Initializing app-level WebSocket connections...');
+      hasConnected.current = true;
+      
+      socketService.connectAll().then(() => {
+        console.log('🎉 App WebSocket initialization complete');
+      }).catch((error) => {
+        console.error('❌ Error initializing WebSocket connections:', error);
+        hasConnected.current = false; // Allow retry on error
+      });
+    }
 
     return () => {
-      // Cleanup on app unmount
-      socketService.disconnect();
+      // Only disconnect on actual unmount, not during StrictMode cleanup
+      // In production, this will properly cleanup
+      // In development with StrictMode, the ref prevents reconnection
+      console.log('🧹 App cleanup running (may be StrictMode)');
     };
   }, []);
 

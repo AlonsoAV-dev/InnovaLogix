@@ -18,34 +18,15 @@ const POS = () => {
     const [stockAlerts, setStockAlerts] = useState([]);
 
     useEffect(() => {
-        // Check connection status
-        setIsConnected(socketService.isConnected());
-
-        // Listen for real-time stock updates
-        const listenerId = socketService.onStockUpdate((data) => {
-            // Show alert if stock is critically low
-            if (data.stock <= 5 && data.action === 'sale') {
-                const alertId = Date.now();
-                setStockAlerts(prev => [...prev, {
-                    id: alertId,
-                    productName: data.productName,
-                    stock: data.stock
-                }]);
-
-                // Remove alert after 7 seconds
-                setTimeout(() => {
-                    setStockAlerts(prev => prev.filter(a => a.id !== alertId));
-                }, 7000);
-            }
-        });
-
-        // Check connection periodically
+        // Check connection status periodically
         const connectionCheck = setInterval(() => {
             setIsConnected(socketService.isConnected());
         }, 3000);
 
+        // Set initial connection status
+        setIsConnected(socketService.isConnected());
+
         return () => {
-            socketService.offStockUpdate(listenerId);
             clearInterval(connectionCheck);
         };
     }, []);

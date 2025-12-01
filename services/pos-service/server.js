@@ -26,6 +26,21 @@ const io = new Server(httpServer, {
 app.use(cors());
 app.use(express.json());
 
+// Helper function to save notification to CRM
+async function saveNotification(type, category, title, message, metadata = null) {
+    try {
+        await axios.post(`${CRM_SERVICE_URL}/api/notifications`, {
+            type,
+            category,
+            title,
+            message,
+            metadata
+        });
+    } catch (err) {
+        console.error(`❌ [${SERVICE_NAME}] Error saving notification:`, err.message);
+    }
+}
+
 await initDB();
 
 // Socket.IO connection handling
@@ -162,6 +177,15 @@ app.post('/api/sales', async (req, res) => {
             timestamp: date
         });
         console.log(`📢 [${SERVICE_NAME}] Sale notification emitted`);
+        
+        // Save notification to database
+        await saveNotification(
+            'success',
+            'sale',
+            'Venta completada',
+            `Venta por $${total.toFixed(2)} - ${items.length} producto(s)`,
+            { saleId, total, itemCount: items.length, paymentMethod }
+        );
 
         res.status(201).json({
             success: true,

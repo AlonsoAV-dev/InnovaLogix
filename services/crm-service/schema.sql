@@ -33,8 +33,22 @@ CREATE TABLE IF NOT EXISTS surveys (
     date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS notifications (
+    id SERIAL PRIMARY KEY,
+    type VARCHAR(50) NOT NULL, -- 'info', 'success', 'warning', 'error'
+    category VARCHAR(50) NOT NULL, -- 'stock', 'sale', 'purchase', 'customer', 'claim'
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    read BOOLEAN DEFAULT FALSE,
+    metadata JSONB, -- Información adicional (productId, saleId, etc.)
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email);
 CREATE INDEX IF NOT EXISTS idx_customers_type ON customers(type);
 CREATE INDEX IF NOT EXISTS idx_claims_customer ON claims(customerId);
 CREATE INDEX IF NOT EXISTS idx_claims_status ON claims(status);
 CREATE INDEX IF NOT EXISTS idx_surveys_customer ON surveys(customerId);
+CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
+CREATE INDEX IF NOT EXISTS idx_notifications_category ON notifications(category);
+CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(createdAt DESC);

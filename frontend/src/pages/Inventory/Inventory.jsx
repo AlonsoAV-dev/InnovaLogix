@@ -21,22 +21,8 @@ const Inventory = () => {
         // Check connection status
         setIsConnected(socketService.isConnected('inventory'));
 
-        // Listen for real-time stock updates
-        const listenerId = socketService.onStockUpdate((data) => {
-            // Add visual notification of update
-            const notificationId = Date.now();
-            setRealtimeUpdates(prev => [...prev, {
-                id: notificationId,
-                productName: data.productName,
-                action: data.action,
-                stock: data.stock
-            }]);
-
-            // Remove notification after 5 seconds
-            setTimeout(() => {
-                setRealtimeUpdates(prev => prev.filter(u => u.id !== notificationId));
-            }, 5000);
-        });
+        // Real-time updates are handled by NotificationContext globally
+        // No need to duplicate listeners here
 
         // Check connection periodically
         const connectionCheck = setInterval(() => {
@@ -44,7 +30,6 @@ const Inventory = () => {
         }, 3000);
 
         return () => {
-            socketService.offStockUpdate(listenerId);
             clearInterval(connectionCheck);
         };
     }, []);

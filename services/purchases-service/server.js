@@ -12,6 +12,7 @@ const app = express();
 const PORT = process.env.PORT || 3003;
 const SERVICE_NAME = process.env.SERVICE_NAME || 'purchases-service';
 const INVENTORY_SERVICE_URL = process.env.INVENTORY_SERVICE_URL || 'http://localhost:3001';
+const CRM_SERVICE_URL = process.env.CRM_SERVICE_URL || 'http://localhost:3002';
 
 // Create HTTP server and Socket.IO instance
 const httpServer = createServer(app);
@@ -24,6 +25,21 @@ const io = new Server(httpServer, {
 
 app.use(cors());
 app.use(express.json());
+
+// Helper function to save notification to CRM
+async function saveNotification(type, category, title, message, metadata = null) {
+    try {
+        await axios.post(`${CRM_SERVICE_URL}/api/notifications`, {
+            type,
+            category,
+            title,
+            message,
+            metadata
+        });
+    } catch (err) {
+        console.error(`❌ [${SERVICE_NAME}] Error saving notification:`, err.message);
+    }
+}
 
 await initDB();
 
@@ -189,6 +205,15 @@ app.post('/api/purchases', async (req, res) => {
         });
         console.log(`📢 [${SERVICE_NAME}] Purchase created notification emitted`);
         
+        // Save notification to database
+        await saveNotification(
+            'info',
+            'purchase',
+            'Compra creada',
+            `Nueva orden de compra a ${supplierName} por $${total.toFixed(2)}`,
+            { purchaseId, supplierName, total, status: 'Pending' }
+        );
+        
         res.status(201).json({
             ...purchaseRes.rows[0],
             items
@@ -254,12 +279,30 @@ app.put('/api/purchases/:id/status', async (req, res) => {
                 total: purchaseData.total
             });
             console.log(`📢 [${SERVICE_NAME}] Purchase confirmed notification emitted`);
+            
+            // Save notification
+            await saveNotification(
+                'success',
+                'purchase',
+                'Compra confirmada',
+                `Orden de compra #${req.params.id} confirmada - ${purchaseData.suppliername}`,
+                { purchaseId: req.params.id, supplierName: purchaseData.suppliername, total: purchaseData.total }
+            );
         } else if (status === 'Cancelled') {
             io.emit('purchaseCancelled', {
                 purchaseId: req.params.id,
                 supplierName: purchaseData.suppliername
             });
             console.log(`📢 [${SERVICE_NAME}] Purchase cancelled notification emitted`);
+            
+            // Save notification
+            await saveNotification(
+                'warning',
+                'purchase',
+                'Compra cancelada',
+                `Orden de compra #${req.params.id} cancelada - ${purchaseData.suppliername}`,
+                { purchaseId: req.params.id, supplierName: purchaseData.suppliername }
+            );
         }
         
         res.json({ message: 'Purchase status updated', status });
