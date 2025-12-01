@@ -57,7 +57,7 @@ const KardexModal = ({ product, onClose }) => {
         <div className="modal-overlay">
             <div className="modal-content kardex-modal">
                 <div className="modal-header">
-                    <h3>{product.name}</h3>
+                    <h3>Kardex | {product.name}</h3>
                     <button className="close-btn" onClick={onClose}><X size={20} /></button>
                 </div>
 
