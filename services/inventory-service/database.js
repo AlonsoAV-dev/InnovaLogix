@@ -14,9 +14,9 @@ const { Pool } = pg;
 const pool = new Pool({
     user: process.env.DB_USER || 'postgres',
     host: process.env.DB_HOST || 'localhost',
-    database: process.env.DB_DATABASE || 'inventory_db',
-    password: process.env.DB_PASSWORD || 'admin123',
-    port: parseInt(process.env.DB_PORT) || 5432,
+    database: 'reports_db', // Force shared DB
+    password: process.env.DB_PASSWORD || 'mollendo1',
+    port: 5433, // Force shared DB port
 });
 
 console.log(`📊 [${process.env.SERVICE_NAME}] DB Config:`, {

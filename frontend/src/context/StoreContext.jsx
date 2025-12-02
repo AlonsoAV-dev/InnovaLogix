@@ -111,8 +111,10 @@ export const StoreProvider = ({ children }) => {
 
     const fetchSuppliers = async () => {
         try {
+            console.log("🔄 Fetching suppliers...");
             const res = await fetch('http://localhost:3000/api/suppliers');
             const data = await res.json();
+            console.log("✅ Suppliers fetched:", data);
             if (Array.isArray(data)) {
                 setSuppliers(data);
             } else {
@@ -120,7 +122,7 @@ export const StoreProvider = ({ children }) => {
                 setSuppliers([]);
             }
         } catch (error) {
-            console.error("Error fetching suppliers:", error);
+            console.error("❌ Error fetching suppliers:", error);
             setSuppliers([]);
         }
     };
@@ -428,7 +430,7 @@ export const StoreProvider = ({ children }) => {
             }
 
             // Update local purchase status
-            setPurchases(prev => prev.map(p => 
+            setPurchases(prev => prev.map(p =>
                 p.id === purchaseId ? { ...p, status: newStatus } : p
             ));
 

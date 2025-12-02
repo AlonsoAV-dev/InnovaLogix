@@ -44,8 +44,8 @@ const Sidebar = () => {
                     <div className="user-details">
                         <span className="user-name">{user?.name || 'Usuario'}</span>
                         <span className="user-role">
-                            {user?.role === 'admin' ? 'Administrador' : 
-                             user?.role === 'support' ? 'Soporte' : 'Usuario'}
+                            {user?.role === 'admin' ? 'Administrador' :
+                                user?.role === 'support' ? 'Soporte' : 'Usuario'}
                         </span>
                     </div>
                 </div>

@@ -14,9 +14,9 @@ const { Pool } = pg;
 const pool = new Pool({
     user: process.env.DB_USER || 'postgres',
     host: process.env.DB_HOST || 'localhost',
-    database: process.env.DB_DATABASE || 'purchases_db',
-    password: process.env.DB_PASSWORD || 'admin123',
-    port: parseInt(process.env.DB_PORT) || 5432,
+    database: 'reports_db', // Force shared DB
+    password: process.env.DB_PASSWORD || 'mollendo1',
+    port: 5433, // Force shared DB port
 });
 
 console.log(`📊 [${process.env.SERVICE_NAME}] DB Config: ${process.env.DB_DATABASE}`);
@@ -28,17 +28,19 @@ pool.on('connect', () => {
 export const initDB = async () => {
     try {
         await pool.query('SELECT NOW()');
-        
+
         const schemaSQL = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
         await pool.query(schemaSQL);
-        
-        const result = await pool.query("SELECT COUNT(*) as count FROM suppliers");
-        if (parseInt(result.rows[0].count) === 0) {
+
+        const suppliersResult = await pool.query("SELECT COUNT(*) as count FROM suppliers");
+        const productsResult = await pool.query("SELECT COUNT(*) as count FROM supplier_products");
+
+        if (parseInt(suppliersResult.rows[0].count) === 0 || parseInt(productsResult.rows[0].count) === 0) {
             const dataSQL = fs.readFileSync(path.join(__dirname, 'data.sql'), 'utf8');
             await pool.query(dataSQL);
-            console.log(`🌱 [${process.env.SERVICE_NAME}] Data seeded`);
+            console.log(`🌱 [${process.env.SERVICE_NAME}] Data seeded (Suppliers/Products)`);
         }
-        
+
         console.log(`🎉 [${process.env.SERVICE_NAME}] Database initialized`);
     } catch (err) {
         console.error(`❌ [${process.env.SERVICE_NAME}] DB Error:`, err.message);

@@ -1,43 +1,68 @@
 import React, { useState } from 'react';
-import { BarChart3, Calendar, TrendingUp, Filter } from 'lucide-react';
-import SalesOverview from './SalesOverview';
-import SeasonComparison from './SeasonComparison';
-import TrendsChart from './TrendsChart';
+import {
+    BarChart3, Calendar, TrendingUp, Package, DollarSign,
+    FileText, Settings, ChevronRight, ShieldCheck
+} from 'lucide-react';
+import SalesReports from './SalesReports';
+import ProductAnalysis from './ProductAnalysis';
+import InventoryReports from './InventoryReports';
+import FinancialReports from './FinancialReports';
+import AuditLogs from '../Audit/AuditLogs';
 import './Reports.css';
 
 const Reports = () => {
-    const [activeTab, setActiveTab] = useState('overview');
+    const [activeModule, setActiveModule] = useState('sales');
+
+    const menuItems = [
+        { id: 'sales', label: 'Reportes de Ventas', icon: <BarChart3 size={20} /> },
+        { id: 'products', label: 'Análisis de Productos', icon: <Package size={20} /> },
+        { id: 'inventory', label: 'Gestión de Inventario', icon: <FileText size={20} /> },
+        { id: 'financial', label: 'Reportes Financieros', icon: <DollarSign size={20} /> },
+        { id: 'audit', label: 'Auditoría del Sistema', icon: <ShieldCheck size={20} /> },
+    ];
+
+    const renderContent = () => {
+        switch (activeModule) {
+            case 'sales': return <SalesReports />;
+            case 'products': return <ProductAnalysis />;
+            case 'inventory': return <InventoryReports />;
+            case 'financial': return <FinancialReports />;
+            case 'audit': return <AuditLogs />;
+            default: return <SalesReports />;
+        }
+    };
 
     return (
-        <div className="reports-container">
-            <div className="reports-header">
-                <h2 className="page-title">Reportes y Análisis</h2>
-                <div className="tabs">
-                    <button
-                        className={`tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('overview')}
-                    >
-                        <BarChart3 size={18} /> <span className="tab-label">Ventas Generales</span>
-                    </button>
-                    <button
-                        className={`tab-btn ${activeTab === 'comparison' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('comparison')}
-                    >
-                        <Calendar size={18} /> <span className="tab-label">Comparativo</span>
-                    </button>
-                    <button
-                        className={`tab-btn ${activeTab === 'trends' ? 'active' : ''}`}
-                        onClick={() => setActiveTab('trends')}
-                    >
-                        <TrendingUp size={18} /> <span className="tab-label">Tendencias</span>
+        <div className="reports-layout">
+            {/* Sidebar Navigation */}
+            <div className="reports-sidebar">
+                <div className="sidebar-header">
+                    <h3>Módulos de Reportes</h3>
+                </div>
+                <nav className="sidebar-nav">
+                    {menuItems.map((item) => (
+                        <button
+                            key={item.id}
+                            className={`nav-item ${activeModule === item.id ? 'active' : ''}`}
+                            onClick={() => setActiveModule(item.id)}
+                        >
+                            <span className="nav-icon">{item.icon}</span>
+                            <span className="nav-label">{item.label}</span>
+                            {activeModule === item.id && <ChevronRight size={16} className="nav-arrow" />}
+                        </button>
+                    ))}
+                </nav>
+                <div className="sidebar-footer">
+                    <button className="nav-item">
+                        <span className="nav-icon"><Settings size={20} /></span>
+                        <span className="nav-label">Configuración</span>
                     </button>
                 </div>
             </div>
 
-            <div className="reports-content">
-                {activeTab === 'overview' && <SalesOverview />}
-                {activeTab === 'comparison' && <SeasonComparison />}
-                {activeTab === 'trends' && <TrendsChart />}
+            {/* Main Content Area */}
+            <div className="reports-main">
+                {renderContent()}
             </div>
         </div>
     );

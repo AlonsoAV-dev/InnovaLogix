@@ -52,11 +52,11 @@ function ProtectedRoutes() {
       };
     }
   }, [isAuthenticated, user]);
-  
+
   if (!isAuthenticated) {
     return <Login />;
   }
-  
+
   return (
     <Routes>
       <Route path="/" element={<MainLayout />}>
@@ -81,7 +81,7 @@ function App() {
     if (!hasConnected.current) {
       console.log('🚀 Initializing app-level WebSocket connections...');
       hasConnected.current = true;
-      
+
       socketService.connectAll().then(() => {
         console.log('🎉 App WebSocket initialization complete');
       }).catch((error) => {
