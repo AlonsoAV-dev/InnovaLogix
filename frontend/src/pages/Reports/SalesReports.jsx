@@ -25,11 +25,13 @@ const SalesReports = () => {
                     axios.get('http://localhost:3005/api/analytics/trends')
                 ]);
 
-                setSalesData(salesRes.data);
-                setTrendsData(trendsRes.data.salesTrend);
+                setSalesData(Array.isArray(salesRes.data) ? salesRes.data : []);
+                setTrendsData(Array.isArray(trendsRes.data?.salesTrend) ? trendsRes.data.salesTrend : []);
                 setLoading(false);
             } catch (error) {
                 console.error("Error fetching sales reports:", error);
+                setSalesData([]);
+                setTrendsData([]);
                 setLoading(false);
             }
         };
@@ -53,9 +55,13 @@ const SalesReports = () => {
 
     if (loading) return <div className="loading">Cargando reportes...</div>;
 
-    // Calculate totals
-    const totalSales = salesData.reduce((sum, item) => sum + item.total, 0);
-    const totalTx = salesData.reduce((sum, item) => sum + item.count, 0);
+    // Calculate totals - safely handle empty arrays
+    const totalSales = Array.isArray(salesData) && salesData.length > 0 
+        ? salesData.reduce((sum, item) => sum + (item.total || 0), 0) 
+        : 0;
+    const totalTx = Array.isArray(salesData) && salesData.length > 0 
+        ? salesData.reduce((sum, item) => sum + (item.count || 0), 0) 
+        : 0;
     const avgTicket = totalTx > 0 ? totalSales / totalTx : 0;
 
     return (
@@ -123,18 +129,24 @@ const SalesReports = () => {
                             <AreaChart data={trendsData}>
                                 <defs>
                                     <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
-                                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                        <stop offset="5%" stopColor="#2E7D32" stopOpacity={0.8} />
+                                        <stop offset="95%" stopColor="#2E7D32" stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                <XAxis dataKey="date" />
-                                <YAxis />
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
+                                <XAxis dataKey="date" stroke="var(--color-text-muted)" />
+                                <YAxis stroke="var(--color-text-muted)" />
                                 <Tooltip
                                     formatter={(value) => [`$${value}`, 'Ventas']}
-                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                    contentStyle={{ 
+                                        borderRadius: '8px', 
+                                        border: 'none', 
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                        backgroundColor: 'var(--color-bg-card)',
+                                        color: 'var(--color-text-main)'
+                                    }}
                                 />
-                                <Area type="monotone" dataKey="total" stroke="#3b82f6" fillOpacity={1} fill="url(#colorTotal)" />
+                                <Area type="monotone" dataKey="total" stroke="#2E7D32" fillOpacity={1} fill="url(#colorTotal)" />
                             </AreaChart>
                         </ResponsiveContainer>
                     </div>

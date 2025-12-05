@@ -22,11 +22,13 @@ const ProductAnalysis = () => {
                     axios.get('http://localhost:3005/api/reports/products/ranking'),
                     axios.get('http://localhost:3005/api/reports/products/rotation')
                 ]);
-                setRanking(rankingRes.data);
-                setRotation(rotationRes.data);
+                setRanking(Array.isArray(rankingRes.data) ? rankingRes.data : []);
+                setRotation(Array.isArray(rotationRes.data) ? rotationRes.data : []);
                 setLoading(false);
             } catch (error) {
                 console.error("Error fetching product reports:", error);
+                setRanking([]);
+                setRotation([]);
                 setLoading(false);
             }
         };
@@ -51,27 +53,27 @@ const ProductAnalysis = () => {
     if (loading) return <div className="loading">Cargando análisis...</div>;
 
     // KPI Calculations
-    const activeProducts = ranking.length;
-    const avgRotation = rotation.length > 0
-        ? Math.round(rotation.reduce((sum, item) => sum + item.rotationDays, 0) / rotation.length)
+    const activeProducts = Array.isArray(ranking) ? ranking.length : 0;
+    const avgRotation = Array.isArray(rotation) && rotation.length > 0
+        ? Math.round(rotation.reduce((sum, item) => sum + (item.rotationDays || 0), 0) / rotation.length)
         : 0;
-    const avgMargin = ranking.length > 0
-        ? (ranking.reduce((sum, item) => sum + parseFloat(item.margin), 0) / ranking.length).toFixed(1)
+    const avgMargin = Array.isArray(ranking) && ranking.length > 0
+        ? (ranking.reduce((sum, item) => sum + parseFloat(item.margin || 0), 0) / ranking.length).toFixed(1)
         : 0;
 
     // Chart Data Preparation
-    const categoryData = ranking.reduce((acc, item) => {
+    const categoryData = Array.isArray(ranking) ? ranking.reduce((acc, item) => {
         const cat = item.category || 'Otros';
         const existing = acc.find(x => x.name === cat);
         if (existing) {
-            existing.value += parseFloat(item.revenue);
+            existing.value += parseFloat(item.revenue || 0);
         } else {
-            acc.push({ name: cat, value: parseFloat(item.revenue) });
+            acc.push({ name: cat, value: parseFloat(item.revenue || 0) });
         }
         return acc;
-    }, []);
+    }, []) : [];
 
-    const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+    const COLORS = ['#2E7D32', '#4CAF50', '#FF6F00', '#FFC107', '#1B5E20'];
 
     return (
         <div className="report-view fade-in">

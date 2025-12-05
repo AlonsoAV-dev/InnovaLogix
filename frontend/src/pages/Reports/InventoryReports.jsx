@@ -20,12 +20,15 @@ const InventoryReports = () => {
                     axios.get('http://localhost:3005/api/reports/inventory/critical'),
                     axios.get('http://localhost:3005/api/reports/inventory/slow-rotation')
                 ]);
-                setInventoryData(invRes.data);
-                setCriticalProducts(critRes.data);
-                setSlowRotation(slowRes.data);
+                setInventoryData(invRes.data || { byCategory: [] });
+                setCriticalProducts(Array.isArray(critRes.data) ? critRes.data : []);
+                setSlowRotation(Array.isArray(slowRes.data) ? slowRes.data : []);
                 setLoading(false);
             } catch (error) {
                 console.error("Error fetching inventory reports:", error);
+                setInventoryData({ byCategory: [] });
+                setCriticalProducts([]);
+                setSlowRotation([]);
                 setLoading(false);
             }
         };
@@ -49,7 +52,9 @@ const InventoryReports = () => {
 
     if (loading) return <div className="loading">Cargando inventario...</div>;
 
-    const totalStock = inventoryData?.byCategory.reduce((sum, cat) => sum + cat.totalStock, 0) || 0;
+    const totalStock = (inventoryData?.byCategory && Array.isArray(inventoryData.byCategory))
+        ? inventoryData.byCategory.reduce((sum, cat) => sum + (cat.totalStock || 0), 0)
+        : 0;
 
     return (
         <div className="report-view fade-in">

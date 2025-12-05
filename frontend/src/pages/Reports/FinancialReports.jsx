@@ -21,11 +21,13 @@ const FinancialReports = () => {
                     axios.get('http://localhost:3005/api/reports/financial/net-profit'),
                     axios.get('http://localhost:3005/api/reports/financial/promotions')
                 ]);
-                setFinancialData(finRes.data);
-                setPromoData(promoRes.data);
+                setFinancialData(finRes.data || { summary: {}, monthly: [] });
+                setPromoData(promoRes.data || { revenueGenerated: 0 });
                 setLoading(false);
             } catch (error) {
                 console.error("Error fetching financial reports:", error);
+                setFinancialData({ summary: {}, monthly: [] });
+                setPromoData({ revenueGenerated: 0 });
                 setError("No se pudieron cargar los reportes. Asegúrese de que el servicio de reportes esté activo.");
                 setLoading(false);
             }
@@ -106,14 +108,21 @@ const FinancialReports = () => {
                 <div className="chart-wrapper">
                     <ResponsiveContainer width="100%" height={300}>
                         <BarChart data={financialData.monthly}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="month" />
-                            <YAxis />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
+                            <XAxis dataKey="month" stroke="var(--color-text-muted)" />
+                            <YAxis stroke="var(--color-text-muted)" />
                             <Tooltip
                                 formatter={(value) => [`$${value}`, 'Ganancia']}
                                 cursor={{ fill: 'transparent' }}
+                                contentStyle={{ 
+                                    borderRadius: '8px', 
+                                    border: 'none', 
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                    backgroundColor: 'var(--color-bg-card)',
+                                    color: 'var(--color-text-main)'
+                                }}
                             />
-                            <Bar dataKey="profit" fill="#10b981" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="profit" fill="#2E7D32" radius={[4, 4, 0, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
