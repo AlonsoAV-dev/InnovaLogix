@@ -8,8 +8,8 @@ const pool = new Pool({
     user: process.env.DB_USER || 'postgres',
     host: process.env.DB_HOST || 'localhost',
     database: process.env.DB_DATABASE || 'reports_db',
-    password: process.env.DB_PASSWORD || 'mollendo1',
-    port: parseInt(process.env.DB_PORT) || 5433,
+    password: process.env.DB_PASSWORD || 'admin123',
+    port: parseInt(process.env.DB_PORT) || 5432,
 });
 
 console.log(`📊 [reports-service] DB Config: ${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_DATABASE}`);
