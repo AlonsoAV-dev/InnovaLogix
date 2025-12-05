@@ -1,0 +1,78 @@
+.stock-notification {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    background: #4A90E2;
+    color: white;
+    padding: 16px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 9999;
+    min-width: 320px;
+    max-width: 400px;
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.stock-notification-icon {
+    background: rgba(255, 255, 255, 0.25);
+    padding: 10px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.stock-notification-content {
+    flex: 1;
+}
+
+.stock-notification-title {
+    margin: 0 0 4px 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.stock-notification-message {
+    margin: 0 0 4px 0;
+    font-size: 14px;
+    opacity: 0.95;
+}
+
+.stock-notification-detail {
+    margin: 0;
+    font-size: 13px;
+    opacity: 0.85;
+}
+
+.stock-notification-close {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s;
+    flex-shrink: 0;
+}
+
+.stock-notification-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+}

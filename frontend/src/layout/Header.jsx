@@ -7,6 +7,7 @@ import socketService from '../services/socketService';
 import NotificationCenter from '../components/NotificationCenter';
 import SupportChat from '../components/SupportChat';
 import SupportNotification from '../components/SupportNotification';
+import StockNotification from '../components/StockNotification';
 import './Header.css';
 
 const Header = () => {
@@ -17,7 +18,9 @@ const Header = () => {
     const [showSupportChat, setShowSupportChat] = useState(false);
     const [hasPendingRequests, setHasPendingRequests] = useState(false);
     const [currentNotification, setCurrentNotification] = useState(null);
+    const [stockNotification, setStockNotification] = useState(null);
 
+    // Listener para solicitudes de soporte
     useEffect(() => {
         if (!isSupport()) return;
 
@@ -63,6 +66,49 @@ const Header = () => {
             };
         }
     }, [isSupport]);
+
+    // Listener para actualizaciones de stock
+    useEffect(() => {
+        const setupStockListener = () => {
+            const inventorySocket = socketService.sockets.inventory;
+            if (!inventorySocket) return;
+
+            const handleStockUpdate = (data) => {
+                console.log('📦 Stock actualizado (visual):', data);
+                setStockNotification({
+                    productName: data.productName,
+                    stock: data.stock,
+                    action: data.action
+                });
+            };
+
+            inventorySocket.on('stockUpdate', handleStockUpdate);
+
+            return () => {
+                inventorySocket.off('stockUpdate', handleStockUpdate);
+            };
+        };
+
+        // Si el socket ya está conectado, configurar listener
+        const inventorySocket = socketService.sockets.inventory;
+        if (inventorySocket?.connected) {
+            return setupStockListener();
+        }
+
+        // Si no está conectado, esperar a que se conecte
+        if (inventorySocket) {
+            const onConnect = () => {
+                console.log('🔌 Inventory socket conectado, configurando listener de stock');
+            };
+            inventorySocket.on('connect', onConnect);
+            const cleanup = setupStockListener();
+            
+            return () => {
+                inventorySocket.off('connect', onConnect);
+                if (cleanup) cleanup();
+            };
+        }
+    }, []);
 
     const handleChatClick = () => {
         setHasPendingRequests(false);
@@ -146,6 +192,14 @@ const Header = () => {
                 clientName={currentNotification?.clientName}
                 onClose={handleNotificationClose}
                 onOpen={handleNotificationOpen}
+            />
+
+            <StockNotification
+                show={stockNotification !== null}
+                productName={stockNotification?.productName}
+                stock={stockNotification?.stock}
+                action={stockNotification?.action}
+                onClose={() => setStockNotification(null)}
             />
         </>
     );

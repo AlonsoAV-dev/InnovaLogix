@@ -21,10 +21,63 @@ const Inventory = () => {
         // Check connection status
         setIsConnected(socketService.isConnected('inventory'));
 
-        // Real-time updates are handled by NotificationContext globally
-        // No need to duplicate listeners here
+        // Listener para actualizar stock en tiempo real en la tabla
+        const setupStockListener = () => {
+            const inventorySocket = socketService.sockets.inventory;
+            if (!inventorySocket) return;
 
-        // Check connection periodically
+            const handleStockUpdate = (data) => {
+                console.log('📦 Actualizando stock en tabla:', data);
+                setProducts(prev => prev.map(p => 
+                    p.id === parseInt(data.productId) || p.id === data.productId
+                        ? { ...p, stock: parseInt(data.stock) }
+                        : p
+                ));
+            };
+
+            inventorySocket.on('stockUpdate', handleStockUpdate);
+
+            return () => {
+                inventorySocket.off('stockUpdate', handleStockUpdate);
+            };
+        };
+
+        // Si el socket ya está conectado, configurar listener
+        const inventorySocket = socketService.sockets.inventory;
+        if (inventorySocket?.connected) {
+            const cleanup = setupStockListener();
+            
+            // Check connection periodically
+            const connectionCheck = setInterval(() => {
+                setIsConnected(socketService.isConnected('inventory'));
+            }, 3000);
+
+            return () => {
+                clearInterval(connectionCheck);
+                if (cleanup) cleanup();
+            };
+        }
+
+        // Si no está conectado, esperar a que se conecte
+        if (inventorySocket) {
+            const onConnect = () => {
+                console.log('🔌 Inventory socket conectado en Inventory.jsx');
+            };
+            inventorySocket.on('connect', onConnect);
+            const cleanup = setupStockListener();
+            
+            const connectionCheck = setInterval(() => {
+                setIsConnected(socketService.isConnected('inventory'));
+            }, 3000);
+            
+            return () => {
+                inventorySocket.off('connect', onConnect);
+                clearInterval(connectionCheck);
+                if (cleanup) cleanup();
+            };
+        }
+
+        // Fallback: solo check de conexión
         const connectionCheck = setInterval(() => {
             setIsConnected(socketService.isConnected('inventory'));
         }, 3000);
@@ -32,7 +85,7 @@ const Inventory = () => {
         return () => {
             clearInterval(connectionCheck);
         };
-    }, []);
+    }, [setProducts]);
 
     // Kardex & Alerts State
     const [isKardexOpen, setIsKardexOpen] = useState(false);

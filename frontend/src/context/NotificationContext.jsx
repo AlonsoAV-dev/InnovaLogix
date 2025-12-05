@@ -156,67 +156,61 @@ export const NotificationProvider = ({ children }) => {
     useEffect(() => {
         console.log('🔔 Configurando listeners de notificaciones...');
 
-        // Wait a bit for connections to establish
-        const setupTimer = setTimeout(() => {
-            console.log('🔌 Registrando listeners de eventos...');
-
-            // Inventory notifications
-            const inventoryListener = socketService.onStockUpdate((data) => {
+        // Inventory notifications
+        const inventorySocket = socketService.sockets.inventory;
+        if (inventorySocket) {
+            inventorySocket.on('stockUpdate', (data) => {
                 console.log('📦 Evento stockUpdate recibido:', data);
-                // Reload notifications from database (backend already saved it)
                 reloadNotifications();
             });
+        }
 
-            // POS notifications
-            const posListeners = [];
-            posListeners.push(socketService.on('pos', 'saleCompleted', (data) => {
-                console.log('💰 Evento saleCompleted recibido:', data);
-                reloadNotifications();
-            }));
+        // POS notifications
+        const posListeners = [];
+        posListeners.push(socketService.on('pos', 'saleCompleted', (data) => {
+            console.log('💰 Evento saleCompleted recibido:', data);
+            reloadNotifications();
+        }));
 
-            // Purchase notifications
-            posListeners.push(socketService.on('purchases', 'purchaseCreated', (data) => {
-                console.log('🛒 Evento purchaseCreated recibido:', data);
-                reloadNotifications();
-            }));
+        // Purchase notifications
+        posListeners.push(socketService.on('purchases', 'purchaseCreated', (data) => {
+            console.log('🛒 Evento purchaseCreated recibido:', data);
+            reloadNotifications();
+        }));
 
-            posListeners.push(socketService.on('purchases', 'purchaseConfirmed', (data) => {
-                console.log('✅ Evento purchaseConfirmed recibido:', data);
-                reloadNotifications();
-            }));
+        posListeners.push(socketService.on('purchases', 'purchaseConfirmed', (data) => {
+            console.log('✅ Evento purchaseConfirmed recibido:', data);
+            reloadNotifications();
+        }));
 
-            posListeners.push(socketService.on('purchases', 'purchaseCancelled', (data) => {
-                console.log('❌ Evento purchaseCancelled recibido:', data);
-                reloadNotifications();
-            }));
+        posListeners.push(socketService.on('purchases', 'purchaseCancelled', (data) => {
+            console.log('❌ Evento purchaseCancelled recibido:', data);
+            reloadNotifications();
+        }));
 
-            // CRM notifications
-            posListeners.push(socketService.on('crm', 'newCustomer', (data) => {
-                console.log('👤 Evento newCustomer recibido:', data);
-                reloadNotifications();
-            }));
+        // CRM notifications
+        posListeners.push(socketService.on('crm', 'newCustomer', (data) => {
+            console.log('👤 Evento newCustomer recibido:', data);
+            reloadNotifications();
+        }));
 
-            posListeners.push(socketService.on('crm', 'newClaim', (data) => {
-                console.log('📢 Evento newClaim recibido:', data);
-                reloadNotifications();
-            }));
+        posListeners.push(socketService.on('crm', 'newClaim', (data) => {
+            console.log('📢 Evento newClaim recibido:', data);
+            reloadNotifications();
+        }));
 
-            console.log('✅ Listeners registrados correctamente');
-
-            // Store cleanup function
-            return () => {
-                socketService.offStockUpdate(inventoryListener);
-                posListeners.forEach(id => {
-                    if (id) socketService.off(id);
-                });
-            };
-        }, 1000); // Wait 1 second for connections to establish
+        console.log('✅ Listeners registrados correctamente');
 
         // Cleanup
         return () => {
-            clearTimeout(setupTimer);
+            if (inventorySocket) {
+                inventorySocket.off('stockUpdate');
+            }
+            posListeners.forEach(id => {
+                if (id) socketService.off(id);
+            });
         };
-    }, [addNotification, reloadNotifications]);
+    }, [reloadNotifications]);
 
     const value = {
         notifications,
