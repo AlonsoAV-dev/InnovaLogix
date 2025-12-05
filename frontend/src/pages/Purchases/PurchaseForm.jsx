@@ -347,7 +347,7 @@ const PurchaseForm = ({ onComplete }) => {
                                         >
                                             <div className="supplier-name">{sp.suppliername}</div>
                                             <div className="supplier-details">
-                                                <span className="price">S/ {sp.price.toFixed(2)}</span>
+                                                <span className="price">S/ {Number(sp.price).toFixed(2)}</span>
                                                 <span className="stock">Stock: {sp.stock}</span>
                                             </div>
                                         </div>

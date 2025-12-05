@@ -22,12 +22,12 @@ const PriceComparison = () => {
     // Group prices by product
     const productPrices = products.map(product => {
         const prices = supplierProducts
-            .filter(sp => sp.productId === product.id && sp.cost != null) // Filtrar solo precios válidos
+            .filter(sp => sp.productId === product.id && sp.price != null) // Filtrar solo precios válidos
             .map(sp => {
                 const supplier = suppliers.find(s => s.id === sp.supplierId);
                 return {
                     supplierName: supplier ? supplier.name : 'Desconocido',
-                    cost: Number(sp.cost) || 0, // Convertir a número y usar 0 como fallback
+                    cost: Number(sp.price) || 0, // Convertir a número y usar 0 como fallback
                     lastUpdated: new Date().toLocaleDateString() // Mock date
                 };
             })
